@@ -51,7 +51,7 @@ export function PeopleView() {
       const byId = new Map(list.map((p) => [p.id, p])); const pkgName = (id) => (pkgs.data || []).find((p) => p.id === id)?.name || 'No package';
       const all = tasks.data || [];
       const orgLine = (p) => {
-        if (p.role === 'employee') return `Team leader: ${byId.get(p.leaderId)?.name || 'UNASSIGNED — required'} · Package: ${pkgName(p.packageId)}`;
+        if (p.role === 'employee') return `Reporting: ${byId.get(p.leaderId)?.name || 'Direct (Admin)'} · Package: ${pkgName(p.packageId)}`;
         if (p.role === 'team_leader') return `Floor manager: ${byId.get(p.floorId)?.name || '—'} · ${list.filter((u) => u.role === 'employee' && u.leaderId === p.id && u.status === 'Active').length} employees`;
         if (p.role === 'floor_manager') return `${list.filter((u) => u.role === 'team_leader' && u.floorId === p.id && u.status === 'Active').length} team leaders · ${list.filter((u) => u.role === 'employee' && u.floorId === p.id && u.status === 'Active').length} employees`;
         const mine = all.filter((t) => t.assigneeId === p.id); return `${mine.length} tasks · ${mine.filter((t) => t.status !== 'Completed').length} open`;

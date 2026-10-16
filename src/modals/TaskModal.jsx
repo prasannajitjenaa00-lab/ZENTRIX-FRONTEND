@@ -86,7 +86,7 @@ function AssignToBody({ person, close }) {
   return (
     <>
       <h3>Assign work to {person.name}</h3>
-      <p className="hint" style={{ margin: '-6px 0 16px' }}>{person.role === 'employee' ? 'Employee' : person.role === 'team_leader' ? 'Team Leader' : person.role} · {person.title || ''}{person.leaderId && roster.name(person.leaderId) ? ` · reports to ${roster.name(person.leaderId)}` : ''}</p>
+      <p className="hint" style={{ margin: '-6px 0 16px' }}>{person.role === 'employee' ? 'Employee' : person.role === 'team_leader' ? 'Team Leader' : person.role} · {person.title || ''}{person.leaderId && roster.name(person.leaderId) ? ` · reports to ${roster.name(person.leaderId)}` : ' · Direct to Admin'}</p>
       {error && <div className="auth-error" role="alert">{error}</div>}
       <TaskForm value={form} onChange={setForm} employees={[person]} roster={roster} lockOwner />
       <div className="modal-actions"><button className="btn btn-ghost btn-sm" id="close-m" onClick={close}>Cancel</button><button className="btn btn-lime btn-sm" id="save-m" disabled={busy} onClick={save}>Assign task</button></div>

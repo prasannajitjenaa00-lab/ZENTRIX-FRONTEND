@@ -95,7 +95,7 @@ export function ProjectsView() {
                     <h4>Assign selected MP3s to employees</h4>
                     <div className="chip-list" id="emp-chips">
                       {people.data?.length ? people.data.map((e) => (
-                        <label className="emp-chip" key={e.id}><input type="checkbox" data-emp={e.id} checked={pickedEmps.has(e.id)} onChange={() => toggle(pickedEmps, setPickedEmps, e.id)} /> {e.name} <small>TL {roster.name(e.leaderId) || '—'}</small></label>))
+                        <label className="emp-chip" key={e.id}><input type="checkbox" data-emp={e.id} checked={pickedEmps.has(e.id)} onChange={() => toggle(pickedEmps, setPickedEmps, e.id)} /> {e.name} <small>{e.leaderId && roster.name(e.leaderId) ? `TL ${roster.name(e.leaderId)}` : 'Direct'}</small></label>))
                         : <div className="empty">No employees in your scope.</div>}
                     </div>
                     <div className="field" style={{ marginTop: 10, maxWidth: 260 }}>

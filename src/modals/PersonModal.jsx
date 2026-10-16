@@ -29,9 +29,8 @@ export default function PersonModal({ person, close }) {
   const save = async () => {
     setError('');
     if (!f.name.trim() || !f.email.trim()) return toast('Name and email are required.');
-    if (isEmp && !f.leaderId) return toast('Every employee must be assigned under a team leader.');
     const bank = { holder: f.holder.trim(), name: f.bankName.trim(), account: f.account.trim(), ifsc: f.ifsc.trim().toUpperCase() };
-    const base = { name: f.name.trim(), email: f.email.trim().toLowerCase(), phone: f.phone.trim(), role: f.role, leaderId: isEmp ? f.leaderId : undefined, packageId: isEmp ? (f.packageId || defaultPkg || undefined) : undefined, mfaEnabled: f.mfa };
+    const base = { name: f.name.trim(), email: f.email.trim().toLowerCase(), phone: f.phone.trim(), role: f.role, leaderId: isEmp ? (f.leaderId || undefined) : undefined, packageId: isEmp ? (f.packageId || defaultPkg || undefined) : undefined, mfaEnabled: f.mfa };
     setBusy(true);
     try {
       if (!person) {
@@ -59,7 +58,7 @@ export default function PersonModal({ person, close }) {
   return (
     <>
       <h3>{person ? 'Edit account' : 'Create account'}</h3>
-      <p className="hint" style={{ margin: '-6px 0 14px' }}>Create an employee or admin account. Employees must sit under a team leader. Choose a package to show as their wallet.</p>
+      <p className="hint" style={{ margin: '-6px 0 14px' }}>Create an employee or admin account. Employees can report directly to Admin or under a team leader. Choose a package to show as their wallet.</p>
       {error && <div className="auth-error" role="alert">{error}</div>}
       <div className="field"><label htmlFor="pe-name">Full name</label><input id="pe-name" value={f.name} onChange={set('name')} /></div>
       <div className="field"><label htmlFor="pe-email">Work email</label><input id="pe-email" type="email" value={f.email} onChange={set('email')} /></div>
@@ -74,9 +73,9 @@ export default function PersonModal({ person, close }) {
       </div>
       {isEmp && (
         <>
-          <div className="field" id="pe-leader-field"><label htmlFor="pe-leader">Team leader <em style={{ color: 'var(--coral)', fontStyle: 'normal' }}>required for employees</em></label>
+          <div className="field" id="pe-leader-field"><label htmlFor="pe-leader">Team leader <em style={{ color: 'var(--muted)', fontStyle: 'normal' }}>optional (direct to admin if unassigned)</em></label>
             <select id="pe-leader" value={f.leaderId} onChange={set('leaderId')}>
-              {teamLeaders.length ? <option value="">Select a team leader…</option> : <option value="">No team leader yet — create one first</option>}
+              <option value="">Direct to Admin / Studio (No team leader)</option>
               {teamLeaders.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
             </select></div>
           <div className="field" id="pe-package-field"><label htmlFor="pe-package">Package <em style={{ color: 'var(--muted)', fontStyle: 'normal' }}>shown as wallet for the employee</em></label>

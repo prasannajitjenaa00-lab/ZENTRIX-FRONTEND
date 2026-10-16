@@ -26,7 +26,6 @@ function Hero() {
 const DEV_ACCOUNTS = [
   ['Dummy admin', 'dummy.admin@local.test', '7790052789'],
   ['Dummy employee', 'dummy.employee@local.test', '7790052789'],
-  // Team leader hidden for now — re-add when needed: ['Dummy team leader', 'dummy.leader@local.test', '7790052789'],
 ];
 
 function LoginCard({ onMfa, onForgot, prefillEmail }) {

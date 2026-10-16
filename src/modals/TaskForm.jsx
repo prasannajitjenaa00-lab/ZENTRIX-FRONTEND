@@ -17,7 +17,7 @@ export default function TaskForm({ value, onChange, employees, roster, lockOwner
         <div className="field"><label htmlFor="f-assignee">Owner</label>
           <select id="f-assignee" value={value.assigneeId} onChange={set('assigneeId')} disabled={lockOwner}>
             {!value.assigneeId && <option value="">Select an owner…</option>}
-            {owners.map((e) => <option key={e.id} value={e.id}>{e.name} · {roleLabel(e.role)}{e.leaderId && roster?.name(e.leaderId) ? ` · TL ${roster.name(e.leaderId)}` : ''}</option>)}
+            {owners.map((e) => <option key={e.id} value={e.id}>{e.name} · {roleLabel(e.role)}{e.leaderId && roster?.name(e.leaderId) ? ` · TL ${roster.name(e.leaderId)}` : ' · Direct'}</option>)}
           </select></div>
         <div className="field"><label htmlFor="f-cat">Category</label><input id="f-cat" value={value.category} onChange={set('category')} /></div>
       </div>
