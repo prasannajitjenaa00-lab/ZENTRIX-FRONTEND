@@ -96,7 +96,6 @@ export default function PersonModal({ person, close }) {
         </div>
         <label className="trust-row" style={{ margin: '6px 0 0' }}><input type="checkbox" id="pe-bank-unlock" checked={f.unlock} onChange={set('unlock')} /> Allow employee to edit bank details (unlock)</label>
       </div>
-      <label className="trust-row" style={{ margin: '4px 0 12px' }}><input type="checkbox" id="pe-mfa" checked={f.mfa} onChange={set('mfa')} /> Require inbox MFA at sign-in</label>
       <div className="modal-actions"><button className="btn btn-ghost btn-sm" id="close-m" onClick={close}>Cancel</button><button className="btn btn-lime btn-sm" id="save-m" disabled={busy} onClick={save}>Save account</button></div>
     </>
   );

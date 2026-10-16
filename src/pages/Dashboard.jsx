@@ -68,12 +68,11 @@ function OverviewDashboard() {
         </div>
         {d.security && (
           <section className="panel cred-panel" style={{ marginTop: 14 }}>
-            <h3>Security credentials <small className="hint-inline">MFA state and password history · passwords are stored hashed and can never be shown</small></h3>
+            <h3>Security credentials <small className="hint-inline">Password history · passwords are stored hashed and can never be shown</small></h3>
             <div className="table-wrap"><table>
-              <thead><tr><th>Person</th><th>Email</th><th>Role</th><th>MFA</th><th>Password last changed</th></tr></thead>
+              <thead><tr><th>Person</th><th>Email</th><th>Role</th><th>Password last changed</th></tr></thead>
               <tbody>{d.security.map((p) => (
                 <tr key={p.id}><td><strong>{p.name}</strong></td><td>{p.email}</td><td>{p.role}</td>
-                  <td>{p.mfaEnabled ? <span className="badge st-Completed">On</span> : <span className="badge pr-Medium">Off</span>}{p.mfaLastAt && <div style={{ ...small, marginTop: 4 }}>Last factor {fmtDateTime(p.mfaLastAt)}</div>}</td>
                   <td style={{ color: 'var(--muted)', fontSize: 12 }}>{p.passwordChangedAt ? fmtDateTime(p.passwordChangedAt) : 'Never'}{p.passwordChangedBy && <div>{p.passwordChangedBy}</div>}</td></tr>))}</tbody>
             </table></div>
           </section>)}

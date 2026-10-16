@@ -28,15 +28,15 @@ const DEV_ACCOUNTS = [
   ['Dummy employee', 'dummy.employee@local.test', '7790052789'],
 ];
 
-function LoginCard({ onMfa, onForgot, prefillEmail }) {
+function LoginCard({ onForgot, prefillEmail }) {
   const { signedIn } = useAuth(); const toast = useToast();
   const [email, setEmail] = useState(prefillEmail || ''); const [password, setPassword] = useState(''); const [error, setError] = useState(''); const [busy, setBusy] = useState(false);
   const submit = async (e) => {
     e.preventDefault(); setError(''); setBusy(true);
     try {
       const out = await authApi.login(email, password);
-      if (out.mfaRequired) { toast('Password accepted. Enter the inbox code to finish.'); onMfa({ email, challengeId: out.challengeId, devPreview: out.devPreview }); }
-      else { signedIn(out.user); toast(`Welcome back, ${out.user.name.split(' ')[0]}.`); }
+      signedIn(out.user);
+      toast(`Welcome back, ${out.user.name.split(' ')[0]}.`);
     } catch (ex) { setError(ex.message || 'Could not sign in.'); } finally { setBusy(false); }
   };
   return (
@@ -55,39 +55,6 @@ function LoginCard({ onMfa, onForgot, prefillEmail }) {
           ))}
         </div>
       )}
-    </form>
-  );
-}
-
-function MfaCard({ ctx, onBack }) {
-  const { signedIn } = useAuth(); const toast = useToast();
-  const [challenge, setChallenge] = useState(ctx); const [code, setCode] = useState(''); const [trust, setTrust] = useState(false); const [error, setError] = useState(''); const [busy, setBusy] = useState(false);
-  const submit = async (e) => {
-    e.preventDefault(); setError(''); setBusy(true);
-    try {
-      const out = await authApi.verifyMfa(challenge.challengeId, code, trust);
-      if (out.recoveryUsed) toast(`Recovery code used. ${out.recoveryRemaining ?? 0} left.`);
-      signedIn(out.user);
-    } catch (ex) { setError(ex.message || 'Could not verify that code.'); } finally { setBusy(false); }
-  };
-  const resend = async () => {
-    setError('');
-    try { const out = await authApi.resendMfa(challenge.challengeId); setChallenge({ ...challenge, challengeId: out.challengeId, devPreview: out.devPreview }); setCode(''); toast('A new code is in the inbox.'); }
-    catch (ex) { setError(ex.message || 'Start sign-in again.'); }
-  };
-  return (
-    <form className={card()} id="mfa-form" onSubmit={submit}>
-      <h2>Verify it’s you</h2>
-      <p className="hint" id="mfa-hint">We sent a 6-digit code to {challenge.email}. It expires in 5 minutes. Recovery codes also work.</p>
-      <Err msg={error} />
-      <div className="field"><label htmlFor="mfa-code">Authentication code</label>
-        <input id="mfa-code" inputMode="numeric" autoComplete="one-time-code" maxLength={20} placeholder="000000" required autoFocus value={code} onChange={(e) => setCode(e.target.value)} /></div>
-      <label className="trust-row"><input type="checkbox" id="mfa-trust" checked={trust} onChange={(e) => setTrust(e.target.checked)} /> Trust this device for 30 days</label>
-      <button className="btn btn-primary" type="submit" id="mfa-submit" disabled={busy}>Confirm and enter</button>
-      <div className="auth-links"><button type="button" className="linkish" id="mfa-resend" onClick={resend}>Resend code</button>{' '}<button type="button" className="linkish" id="go-login-from-mfa" onClick={onBack}>Back to sign in</button></div>
-      {challenge.devPreview && (   // present only when the server runs with DEV_MAIL_PREVIEW=true (never in production)
-        <div className="inbox-panel" id="mfa-inbox"><strong>Development mail preview</strong><div>{challenge.devPreview.subject}</div>
-          <div className="letter">Your one-time code is <b id="mfa-preview-code">{challenge.devPreview.code}</b>.</div></div>)}
     </form>
   );
 }
@@ -135,7 +102,7 @@ function ResetCard({ token, onDone }) {
   );
 }
 
-/** Auth flow: login → (MFA) → app. Also handles #reset=<token> deep links. */
+/** Auth flow: login → app. Also handles #reset=<token> deep links. */
 export default function AuthScreen() {
   const [step, setStep] = useState({ name: 'login' });
   const fromHash = () => { const m = (window.location.hash || '').match(/^#reset=([a-f0-9]+)/i); return m ? m[1] : null; };
@@ -145,8 +112,7 @@ export default function AuthScreen() {
     <section id="auth-screen" className="auth-wrap screen-enter">
       <Hero />
       <div className="auth-panel">
-        {step.name === 'login' && <LoginCard prefillEmail={step.email} onMfa={(ctx) => setStep({ name: 'mfa', ctx })} onForgot={(email) => setStep({ name: 'forgot', email })} />}
-        {step.name === 'mfa' && <MfaCard ctx={step.ctx} onBack={() => setStep({ name: 'login' })} />}
+        {step.name === 'login' && <LoginCard prefillEmail={step.email} onForgot={(email) => setStep({ name: 'forgot', email })} />}
         {step.name === 'forgot' && <ForgotCard initialEmail={step.email} onBack={() => setStep({ name: 'login' })} onOpenReset={(t) => { window.location.hash = `reset=${t}`; setStep({ name: 'reset', token: t }); }} />}
         {step.name === 'reset' && <ResetCard token={step.token} onDone={(email) => { clearHash(); setStep({ name: 'login', email }); }} />}
       </div>
