@@ -88,6 +88,7 @@ export default function AssignedAudio() {
 
   // Selected track state
   const [selectedId, setSelectedId] = useState(null);
+  const [mobileTab, setMobileTab] = useState('list');
 
   const selectedTrack = useMemo(() => {
     if (!allTracks.length) return null;
@@ -269,8 +270,35 @@ export default function AssignedAudio() {
         }}
       />
 
+      {/* Mobile Tab Toggle Bar (visible only on mobile/tablets) */}
+      <div className="mobile-audio-tabs">
+        <button
+          type="button"
+          className={`mobile-tab-btn ${mobileTab === 'list' ? 'active' : ''}`}
+          onClick={() => setMobileTab('list')}
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" />
+            <line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" />
+          </svg>
+          <span>Audio Files ({counts.all})</span>
+        </button>
+        <button
+          type="button"
+          className={`mobile-tab-btn ${mobileTab === 'editor' ? 'active' : ''}`}
+          onClick={() => setMobileTab('editor')}
+          disabled={!selectedTrack}
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+            <polyline points="14 2 14 8 20 8" />
+          </svg>
+          <span>Transcription {selectedTrack ? `(${selectedTrack.originalName.slice(0, 10)}...)` : ''}</span>
+        </button>
+      </div>
+
       {/* 2-Column Split Master Detail View */}
-      <div className="split-grid">
+      <div className={`split-grid mobile-view-${mobileTab}`}>
         {/* ================= LEFT MASTER LIST ================= */}
         <section className="track-list-panel">
           {/* Filter Pills */}
@@ -335,7 +363,10 @@ export default function AssignedAudio() {
                   <div
                     key={item.id}
                     className={`track-item-card ${isSelected ? 'selected' : ''}`}
-                    onClick={() => setSelectedId(item.id)}
+                    onClick={() => {
+                      setSelectedId(item.id);
+                      setMobileTab('editor');
+                    }}
                   >
                     {/* Left Music Icon */}
                     <div className={`track-icon-box icon-${item.iconColor || 'blue'}`}>
@@ -385,6 +416,7 @@ export default function AssignedAudio() {
                         onClick={(e) => {
                           e.stopPropagation();
                           setSelectedId(item.id);
+                          setMobileTab('editor');
                           togglePlay();
                         }}
                         title={isPlaying && isSelected ? 'Pause' : 'Play'}
@@ -489,7 +521,12 @@ export default function AssignedAudio() {
                 </div>
               </div>
               <div className="selected-header-nav">
-                <button type="button" className="icon-btn-round" title="Back" onClick={() => setSelectedId(null)}>
+                <button
+                  type="button"
+                  className="icon-btn-round"
+                  title="Back to list"
+                  onClick={() => setMobileTab('list')}
+                >
                   &lt;
                 </button>
               </div>
@@ -676,11 +713,43 @@ export default function AssignedAudio() {
                 ref={editorRef}
                 className="transcription-edit-area"
                 rows={8}
-                placeholder="Start typing the transcription here..."
+                placeholder="Start typing the transcription here... (Manual typing required - Paste disabled)"
                 value={textValue}
                 onChange={(e) => {
                   setDrafts({ ...drafts, [selectedTrack.id]: e.target.value });
                   setLastSaved('just now');
+                }}
+                onPaste={(e) => {
+                  e.preventDefault();
+                  toast('Pasting is disabled. Please type the transcription manually.');
+                }}
+                onCopy={(e) => {
+                  e.preventDefault();
+                  toast('Copying transcription text is disabled.');
+                }}
+                onCut={(e) => {
+                  e.preventDefault();
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  toast('Drag and drop is disabled. Please type the transcription manually.');
+                }}
+                onKeyDown={(e) => {
+                  if ((e.ctrlKey || e.metaKey) && (e.key === 'v' || e.key === 'V')) {
+                    e.preventDefault();
+                    toast('Pasting is disabled. Please type the transcription manually.');
+                  }
+                  if (e.shiftKey && e.key === 'Insert') {
+                    e.preventDefault();
+                    toast('Pasting is disabled. Please type the transcription manually.');
+                  }
+                  if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'C')) {
+                    e.preventDefault();
+                    toast('Copying transcription text is disabled.');
+                  }
+                }}
+                onContextMenu={(e) => {
+                  e.preventDefault();
                 }}
               />
             </div>

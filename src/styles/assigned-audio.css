@@ -740,3 +740,178 @@
   background: rgba(255, 255, 255, 0.12);
   color: #ffffff;
 }
+
+/* ==========================================================================
+   MOBILE & TABLET RESPONSIVENESS ENHANCEMENTS
+   ========================================================================== */
+.mobile-audio-tabs {
+  display: none;
+}
+
+@media (max-width: 860px) {
+  .pulse-split-workspace {
+    padding: 0;
+  }
+
+  .mobile-audio-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+    background: rgba(12, 25, 44, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    padding: 4px;
+  }
+
+  .mobile-tab-btn {
+    flex: 1;
+    padding: 9px 12px;
+    border-radius: 8px;
+    border: none;
+    background: transparent;
+    color: #94a3b8;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: all 0.15s;
+    min-height: 40px;
+  }
+
+  .mobile-tab-btn.active {
+    background: #0284c7;
+    color: #ffffff;
+    box-shadow: 0 2px 8px rgba(2, 132, 199, 0.4);
+  }
+
+  .split-grid {
+    grid-template-columns: 1fr !important;
+    gap: 14px;
+  }
+
+  .split-grid.mobile-view-list .track-detail-panel {
+    display: none !important;
+  }
+
+  .split-grid.mobile-view-editor .track-list-panel {
+    display: none !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .filter-pill-bar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 6px;
+    scrollbar-width: none;
+  }
+  .filter-pill-bar::-webkit-scrollbar {
+    display: none;
+  }
+  .filter-pill {
+    white-space: nowrap;
+    flex-shrink: 0;
+    padding: 7px 14px;
+    font-size: 12px;
+  }
+
+  .track-item-card {
+    padding: 10px 12px;
+    gap: 10px;
+  }
+  .track-item-title {
+    font-size: 12.5px;
+  }
+  .track-item-meta {
+    font-size: 10.5px;
+    gap: 6px;
+  }
+
+  /* Audio player card on small screens */
+  .workspace-player-card {
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 12px 14px;
+  }
+  .waveform-bar-wrap {
+    order: 3;
+    width: 100%;
+    flex: 0 0 100%;
+    height: 38px;
+    margin-top: 4px;
+  }
+  .player-time-txt {
+    font-size: 11.5px;
+  }
+  .volume-wrap input[type="range"] {
+    width: 48px;
+  }
+
+  /* Header and Meta */
+  .selected-track-header {
+    flex-wrap: wrap;
+    padding: 12px 14px;
+    gap: 10px;
+  }
+  .selected-track-title {
+    font-size: 14px;
+    max-width: 200px;
+  }
+  .selected-meta-row {
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    font-size: 11px;
+  }
+
+  /* Transcription area */
+  .card-top-head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 10px 14px;
+  }
+  .card-top-meta {
+    width: 100%;
+    justify-content: space-between;
+    font-size: 11px;
+  }
+  .editor-action-bar {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 6px 10px;
+  }
+  .editor-action-bar::-webkit-scrollbar {
+    height: 3px;
+  }
+  .action-bar-left, .action-bar-right {
+    flex-shrink: 0;
+  }
+  .transcription-edit-area {
+    padding: 12px;
+    font-size: 14px;
+    min-height: 160px;
+  }
+
+  /* Action Buttons Split */
+  .transcription-actions-split {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .action-split-card {
+    padding: 12px 14px;
+  }
+
+  /* History list */
+  .history-row-item {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px 12px;
+  }
+  .btn-view-history {
+    margin-left: auto;
+  }
+}

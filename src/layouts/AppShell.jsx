@@ -91,6 +91,7 @@ export default function AppShell({ children }) {
     title: 'Assigned Audio',
     sub: 'Listen to your assigned audio files, transcribe and submit for review',
   });
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const items = useMemo(() => navItems(user), [user]);
   const [search, setSearch] = useState('');
 
@@ -101,6 +102,7 @@ export default function AppShell({ children }) {
   };
   const goTo = (key) => {
     setSearch('');
+    setMobileNavOpen(false);
     nav.go(key);
   };
 
@@ -109,8 +111,11 @@ export default function AppShell({ children }) {
   return (
     <HeaderCtx.Provider value={setHeader}>
       <section id="app-screen" className="shell screen-enter">
+        {/* Mobile Backdrop */}
+        {mobileNavOpen && <div className="sidebar-backdrop" onClick={() => setMobileNavOpen(false)} />}
+
         {/* Sidebar */}
-        <aside className="sidebar">
+        <aside className={`sidebar ${mobileNavOpen ? 'mobile-open' : ''}`}>
           {/* Brand header matching Zentrix PULSE */}
           <div className="sidebar-brand">
             <svg width="38" height="38" viewBox="0 0 40 40" fill="none" style={{ filter: 'drop-shadow(0 4px 12px rgba(0, 210, 255, 0.4))' }}>
@@ -127,6 +132,17 @@ export default function AppShell({ children }) {
               <div className="brand-name" style={{ fontSize: 16, fontWeight: 700, letterSpacing: '-0.02em', color: '#ffffff' }}>Zentrix</div>
               <div className="brand-sub" style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#00d2ff', fontWeight: 700 }}>Pulse</div>
             </div>
+            <button
+              type="button"
+              className="mobile-sidebar-close"
+              onClick={() => setMobileNavOpen(false)}
+              aria-label="Close navigation"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
           </div>
 
           <div className="nav-label">WORKSPACE</div>
@@ -184,6 +200,18 @@ export default function AppShell({ children }) {
         {/* Main Section */}
         <div className="main">
           <header className="topbar">
+            <button
+              type="button"
+              className="mobile-menu-btn"
+              onClick={() => setMobileNavOpen((o) => !o)}
+              title="Toggle navigation menu"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <line x1="3" y1="12" x2="21" y2="12" />
+                <line x1="3" y1="6" x2="21" y2="6" />
+                <line x1="3" y1="18" x2="21" y2="18" />
+              </svg>
+            </button>
             <div className="top-title">
               <h2 id="page-title">{header.title}</h2>
               <p id="page-sub">{header.sub}</p>
