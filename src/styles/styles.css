@@ -892,6 +892,8 @@ a {
 }
 
 .topbar {
+  position: relative;
+  z-index: 50;
   height: 72px;
   flex: 0 0 72px;
   display: flex;
