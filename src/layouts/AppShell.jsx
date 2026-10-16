@@ -92,6 +92,8 @@ export default function AppShell({ children }) {
     sub: 'Listen to your assigned audio files, transcribe and submit for review',
   });
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(2);
   const items = useMemo(() => navItems(user), [user]);
   const [search, setSearch] = useState('');
 
@@ -103,7 +105,14 @@ export default function AppShell({ children }) {
   const goTo = (key) => {
     setSearch('');
     setMobileNavOpen(false);
+    setNotifOpen(false);
     nav.go(key);
+  };
+
+  const handleLogout = async () => {
+    setMobileNavOpen(false);
+    setNotifOpen(false);
+    await logout();
   };
 
   const userInitials = user.name?.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase() || 'DE';
@@ -185,14 +194,15 @@ export default function AppShell({ children }) {
               type="button"
               className="btn-sidebar-signout"
               id="logout-btn"
-              onClick={logout}
+              onClick={handleLogout}
+              title="Sign out of Zentrix Pulse"
             >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
                 <polyline points="16 17 21 12 16 7" />
                 <line x1="21" y1="12" x2="9" y2="12" />
               </svg>
-              <span>Sign out</span>
+              <span className="signout-text">Sign out</span>
             </button>
           </div>
         </aside>
@@ -231,14 +241,76 @@ export default function AppShell({ children }) {
                 />
               </div>
 
-              {/* Notification Bell */}
-              <button type="button" className="topbar-icon-btn" title="Notifications">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                  <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-                </svg>
-                <span className="notif-dot" />
-              </button>
+              {/* Notification Bell with interactive dropdown */}
+              <div className="topbar-notif-wrap">
+                <button
+                  type="button"
+                  className={`topbar-icon-btn ${notifOpen ? 'active' : ''}`}
+                  title="Notifications"
+                  aria-label="View notifications"
+                  onClick={() => setNotifOpen((v) => !v)}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                    <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                  </svg>
+                  {unreadCount > 0 && <span className="notif-dot" />}
+                </button>
+
+                {notifOpen && (
+                  <>
+                    <div className="notif-backdrop" onClick={() => setNotifOpen(false)} />
+                    <div className="notif-dropdown">
+                      <div className="notif-header">
+                        <div className="notif-title-row">
+                          <h4 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#f8fafc' }}>Notifications</h4>
+                          {unreadCount > 0 && <span className="notif-badge">{unreadCount} new</span>}
+                        </div>
+                        {unreadCount > 0 && (
+                          <button
+                            type="button"
+                            className="notif-mark-read"
+                            onClick={() => setUnreadCount(0)}
+                          >
+                            Mark all read
+                          </button>
+                        )}
+                      </div>
+                      <div className="notif-list">
+                        <div className="notif-item unread" onClick={() => { goTo('notebook'); setNotifOpen(false); }}>
+                          <div className="notif-bubble audio">🎧</div>
+                          <div className="notif-info">
+                            <strong>Assigned Audio Ready</strong>
+                            <p>Transcribe and review your assigned audio tracks.</p>
+                            <small>Just now</small>
+                          </div>
+                        </div>
+                        <div className="notif-item unread" onClick={() => { goTo('tasks'); setNotifOpen(false); }}>
+                          <div className="notif-bubble task">📋</div>
+                          <div className="notif-info">
+                            <strong>Tasks Synchronized</strong>
+                            <p>Task status and project queues updated in real time.</p>
+                            <small>12m ago</small>
+                          </div>
+                        </div>
+                        <div className="notif-item" onClick={() => { goTo('chat'); setNotifOpen(false); }}>
+                          <div className="notif-bubble chat">💬</div>
+                          <div className="notif-info">
+                            <strong>Studio Chat Active</strong>
+                            <p>Connect with your production team in Studio Chat.</p>
+                            <small>1h ago</small>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="notif-footer">
+                        <button type="button" className="notif-close-btn" onClick={() => setNotifOpen(false)}>
+                          Dismiss
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
 
               {/* User Avatar Circle */}
               <div
