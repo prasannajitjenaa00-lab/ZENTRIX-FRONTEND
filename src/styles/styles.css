@@ -1444,7 +1444,8 @@ tr:hover td {
   color: #ffc48a;
 }
 
-.st-Completed {
+.st-Completed,
+.st-Approved {
   background: rgba(46, 194, 122, .14);
   color: #8ef0c0;
 }

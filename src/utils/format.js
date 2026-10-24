@@ -1,8 +1,7 @@
 import config from '../config';
 
-export const STATUS = ['Pending', 'In Progress', 'On Hold', 'Completed'];
-export const PRIORITY = ['Low', 'Medium', 'High'];
-export const STATUS_COLOR = { Pending: '#12c2d4', 'In Progress': '#ff8a2b', 'On Hold': '#8b7cff', Completed: '#2ec27a' };
+export const STATUS = ['Pending', 'In Progress', 'On Hold', 'Completed', 'Approved'];
+export const STATUS_COLOR = { Pending: '#12c2d4', 'In Progress': '#ff8a2b', 'On Hold': '#8b7cff', Completed: '#2ec27a', Approved: '#2ec27a' };
 export const ROLE_LABEL = { admin: 'Admin', floor_manager: 'Floor Manager', team_leader: 'Team Leader', employee: 'Employee' };
 export const MAX_PROJECT_UPLOAD = config.maxUploadFiles;
 

@@ -7,9 +7,10 @@ import PasswordInput from '../components/PasswordInput';
 const card = (cls) => `auth-card card-enter ${cls || ''}`;
 const Err = ({ msg }) => <div className={`auth-error ${msg ? '' : 'hidden'}`} role="alert">{msg}</div>;
 
-function Hero() {
+function Hero({ onBack }) {
   return (
     <div className="auth-brand">
+      {onBack && <button type="button" className="linkish back-link" onClick={onBack}>← Back to home</button>}
       <div className="brand-row"><img src="/assets/logo-lockup.png" alt="Zentrix logo" className="brand-lockup" /></div>
       <div className="auth-hero">
         <h1>Orchestrate every month.<br /><em>Own every status.</em></h1>
@@ -103,14 +104,14 @@ function ResetCard({ token, onDone }) {
 }
 
 /** Auth flow: login → app. Also handles #reset=<token> deep links. */
-export default function AuthScreen() {
+export default function AuthScreen({ onBack }) {
   const [step, setStep] = useState({ name: 'login' });
   const fromHash = () => { const m = (window.location.hash || '').match(/^#reset=([a-f0-9]+)/i); return m ? m[1] : null; };
   useEffect(() => { const t = fromHash(); if (t) setStep({ name: 'reset', token: t }); const h = () => { const x = fromHash(); if (x) setStep({ name: 'reset', token: x }); }; window.addEventListener('hashchange', h); return () => window.removeEventListener('hashchange', h); }, []);
   const clearHash = () => window.history.replaceState(null, '', window.location.pathname + window.location.search);
   return (
     <section id="auth-screen" className="auth-wrap screen-enter">
-      <Hero />
+      <Hero onBack={onBack} />
       <div className="auth-panel">
         {step.name === 'login' && <LoginCard prefillEmail={step.email} onForgot={(email) => setStep({ name: 'forgot', email })} />}
         {step.name === 'forgot' && <ForgotCard initialEmail={step.email} onBack={() => setStep({ name: 'login' })} onOpenReset={(t) => { window.location.hash = `reset=${t}`; setStep({ name: 'reset', token: t }); }} />}

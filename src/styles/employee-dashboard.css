@@ -1,0 +1,555 @@
+/* ==========================================================================
+   EMPLOYEE DASHBOARD (ZENTRIX PULSE PROJECT COLOR COMBINATION)
+   Glassmorphic dark design tailored with signature Zentrix Pulse color tokens
+   ========================================================================== */
+
+.emp-dashboard-container {
+  width: 100%;
+  max-width: 1480px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Page Header */
+.emp-page-header {
+  margin-bottom: 2px;
+}
+.emp-page-header h1 {
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--text, #e8f1fb);
+  margin: 0 0 4px 0;
+  letter-spacing: -0.02em;
+}
+.emp-page-header p {
+  font-size: 13px;
+  color: var(--muted, #8aa3bf);
+  margin: 0;
+}
+
+/* ================= 1. HERO WELCOME BANNER ================= */
+.emp-hero-banner {
+  background: linear-gradient(
+      135deg,
+      rgba(18, 194, 212, 0.16) 0%,
+      rgba(43, 93, 232, 0.14) 48%,
+      rgba(139, 124, 255, 0.15) 100%
+    ),
+    var(--glass-bg, linear-gradient(165deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.04) 38%, rgba(12, 26, 46, 0.28) 100%));
+  border: var(--glass-border, 1px solid rgba(255, 255, 255, 0.22));
+  border-radius: var(--radius, 18px);
+  padding: 28px 32px;
+  box-shadow: var(--glass-shadow, 0 18px 50px rgba(2, 10, 24, 0.38)), 0 0 45px rgba(18, 194, 212, 0.08);
+  backdrop-filter: var(--blur, blur(22px) saturate(160%));
+  -webkit-backdrop-filter: var(--blur, blur(22px) saturate(160%));
+  position: relative;
+  overflow: hidden;
+}
+
+.emp-hero-banner::before {
+  content: "";
+  position: absolute;
+  top: -60px;
+  right: 18%;
+  width: 240px;
+  height: 240px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(18, 194, 212, 0.18) 0%, transparent 70%);
+  pointer-events: none;
+  filter: blur(24px);
+}
+
+.emp-hero-content {
+  max-width: 740px;
+  position: relative;
+  z-index: 1;
+}
+
+.emp-hero-greeting {
+  font-size: 28px;
+  font-weight: 800;
+  color: #ffffff;
+  margin: 0 0 8px 0;
+  letter-spacing: -0.02em;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.emp-hero-name {
+  color: var(--teal, #12c2d4);
+  text-transform: uppercase;
+  background: linear-gradient(135deg, #12c2d4 0%, #c6ef3a 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 2px 8px rgba(18, 194, 212, 0.35));
+}
+
+.emp-hero-sub {
+  font-size: 14px;
+  color: var(--soft, #c5d6ea);
+  margin: 0 0 20px 0;
+  line-height: 1.5;
+}
+
+.emp-hero-badges-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 22px;
+}
+
+.emp-badge-pill {
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  padding: 7px 15px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text, #e8f1fb);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  transition: border-color 0.2s, background 0.2s, transform 0.2s;
+}
+.emp-badge-pill:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(18, 194, 212, 0.4);
+  transform: translateY(-1px);
+}
+
+.emp-start-task-btn {
+  background: linear-gradient(135deg, var(--teal, #12c2d4) 0%, var(--teal-deep, #0a8fa0) 100%);
+  color: #07111f;
+  border: none;
+  border-radius: 12px;
+  padding: 12px 24px;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+  box-shadow: 0 6px 20px rgba(18, 194, 212, 0.45);
+}
+.emp-start-task-btn:hover {
+  background: linear-gradient(135deg, #22d3ee 0%, var(--teal, #12c2d4) 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 26px rgba(18, 194, 212, 0.6);
+}
+
+.emp-hero-clock-pill {
+  position: absolute;
+  bottom: 26px;
+  right: 28px;
+  background: rgba(10, 22, 40, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--teal, #12c2d4);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 6px 18px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+/* ================= 2. FOUR KPI CARDS ================= */
+.emp-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.emp-kpi-card {
+  border-radius: var(--radius, 18px);
+  padding: 20px 22px;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 134px;
+  backdrop-filter: var(--blur, blur(22px) saturate(160%));
+  -webkit-backdrop-filter: var(--blur, blur(22px) saturate(160%));
+  box-shadow: var(--glass-shadow, 0 18px 50px rgba(2, 10, 24, 0.38));
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.emp-kpi-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 16px 36px rgba(2, 10, 24, 0.55);
+}
+
+.emp-kpi-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  position: relative;
+  z-index: 1;
+}
+.emp-kpi-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--soft, #c5d6ea);
+  line-height: 1.3;
+}
+
+.emp-kpi-icon-box {
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.emp-kpi-value {
+  font-size: 28px;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: -0.02em;
+  margin: 10px 0 3px 0;
+  line-height: 1.15;
+  position: relative;
+  z-index: 1;
+}
+
+.emp-kpi-sub {
+  font-size: 12px;
+  color: var(--muted, #8aa3bf);
+  margin: 0;
+  position: relative;
+  z-index: 1;
+}
+
+/* Watermark SVG Bars in Card Bottom-Right */
+.emp-kpi-watermark {
+  position: absolute;
+  right: 12px;
+  bottom: 0px;
+  pointer-events: none;
+  opacity: 0.2;
+}
+
+/* 4 Individual KPI Color Schemes matching Zentrix Pulse Design Tokens */
+/* Card 1: Teal / Cyan (Total Income) */
+.emp-kpi-card.teal {
+  background: linear-gradient(145deg, rgba(18, 194, 212, 0.26) 0%, rgba(10, 143, 160, 0.12) 60%, rgba(7, 17, 31, 0.55) 100%);
+  border: 1px solid rgba(18, 194, 212, 0.38);
+}
+.emp-kpi-card.teal .emp-kpi-icon-box {
+  background: rgba(18, 194, 212, 0.22);
+  color: var(--teal, #12c2d4);
+  border: 1px solid rgba(18, 194, 212, 0.4);
+}
+.emp-kpi-card.teal:hover {
+  border-color: rgba(18, 194, 212, 0.6);
+  box-shadow: 0 14px 34px rgba(18, 194, 212, 0.22);
+}
+.emp-kpi-card.teal .emp-kpi-watermark {
+  color: var(--teal, #12c2d4);
+}
+
+/* Card 2: Electric Blue (Current Pack) */
+.emp-kpi-card.blue {
+  background: linear-gradient(145deg, rgba(43, 93, 232, 0.26) 0%, rgba(26, 63, 184, 0.12) 60%, rgba(7, 17, 31, 0.55) 100%);
+  border: 1px solid rgba(43, 93, 232, 0.38);
+}
+.emp-kpi-card.blue .emp-kpi-icon-box {
+  background: rgba(43, 93, 232, 0.22);
+  color: #70a1ff;
+  border: 1px solid rgba(43, 93, 232, 0.4);
+}
+.emp-kpi-card.blue:hover {
+  border-color: rgba(43, 93, 232, 0.6);
+  box-shadow: 0 14px 34px rgba(43, 93, 232, 0.22);
+}
+.emp-kpi-card.blue .emp-kpi-watermark {
+  color: #70a1ff;
+}
+
+/* Card 3: Hold / Purple (Total Audio Generated) */
+.emp-kpi-card.purple {
+  background: linear-gradient(145deg, rgba(139, 124, 255, 0.26) 0%, rgba(108, 92, 231, 0.12) 60%, rgba(7, 17, 31, 0.55) 100%);
+  border: 1px solid rgba(139, 124, 255, 0.38);
+}
+.emp-kpi-card.purple .emp-kpi-icon-box {
+  background: rgba(139, 124, 255, 0.22);
+  color: var(--hold, #8b7cff);
+  border: 1px solid rgba(139, 124, 255, 0.4);
+}
+.emp-kpi-card.purple:hover {
+  border-color: rgba(139, 124, 255, 0.6);
+  box-shadow: 0 14px 34px rgba(139, 124, 255, 0.22);
+}
+.emp-kpi-card.purple .emp-kpi-watermark {
+  color: var(--hold, #8b7cff);
+}
+
+/* Card 4: Orange / Coral (Total Duration) */
+.emp-kpi-card.amber {
+  background: linear-gradient(145deg, rgba(255, 138, 43, 0.26) 0%, rgba(255, 90, 50, 0.12) 60%, rgba(7, 17, 31, 0.55) 100%);
+  border: 1px solid rgba(255, 138, 43, 0.38);
+}
+.emp-kpi-card.amber .emp-kpi-icon-box {
+  background: rgba(255, 138, 43, 0.22);
+  color: var(--orange, #ff8a2b);
+  border: 1px solid rgba(255, 138, 43, 0.4);
+}
+.emp-kpi-card.amber:hover {
+  border-color: rgba(255, 138, 43, 0.6);
+  box-shadow: 0 14px 34px rgba(255, 138, 43, 0.22);
+}
+.emp-kpi-card.amber .emp-kpi-watermark {
+  color: var(--orange, #ff8a2b);
+}
+
+/* ================= 3. BOTTOM SPLIT GRID (YOUR PROGRESS & TERMS) ================= */
+.emp-bottom-grid {
+  display: grid;
+  grid-template-columns: 1fr 1.08fr;
+  gap: 18px;
+  align-items: stretch;
+}
+
+.emp-panel-card {
+  background: var(--glass-bg, linear-gradient(165deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.04) 38%, rgba(12, 26, 46, 0.28) 100%));
+  border: var(--glass-border, 1px solid rgba(255, 255, 255, 0.22));
+  border-radius: var(--radius, 18px);
+  padding: 24px;
+  box-shadow: var(--glass-shadow, 0 18px 50px rgba(2, 10, 24, 0.38));
+  backdrop-filter: var(--blur, blur(22px) saturate(160%));
+  -webkit-backdrop-filter: var(--blur, blur(22px) saturate(160%));
+  display: flex;
+  flex-direction: column;
+}
+
+.emp-panel-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 22px;
+}
+
+.emp-panel-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+.emp-panel-icon.green {
+  background: rgba(46, 194, 122, 0.2);
+  color: var(--green, #2ec27a);
+  border: 1px solid rgba(46, 194, 122, 0.35);
+}
+.emp-panel-icon.mint {
+  background: rgba(18, 194, 212, 0.2);
+  color: var(--teal, #12c2d4);
+  border: 1px solid rgba(18, 194, 212, 0.35);
+}
+
+.emp-panel-title-block h3 {
+  font-size: 17px;
+  font-weight: 800;
+  color: #ffffff;
+  margin: 0 0 3px 0;
+  letter-spacing: -0.01em;
+}
+.emp-panel-title-block p {
+  font-size: 13px;
+  color: var(--muted, #8aa3bf);
+  margin: 0;
+}
+
+/* Flow steps in "Your Progress" */
+.emp-steps-flow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 18px 0 28px 0;
+  padding: 0 8px;
+}
+
+.emp-step-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 9px;
+  flex: 1;
+}
+
+.emp-step-circle {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #ffffff;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.emp-step-item:hover .emp-step-circle {
+  transform: scale(1.1);
+}
+
+.emp-step-circle.c1 {
+  background: linear-gradient(135deg, var(--green, #2ec27a) 0%, #10b981 100%);
+  box-shadow: 0 4px 14px rgba(46, 194, 122, 0.4);
+  color: #07111f;
+}
+.emp-step-circle.c2 {
+  background: linear-gradient(135deg, var(--teal, #12c2d4) 0%, var(--teal-deep, #0a8fa0) 100%);
+  box-shadow: 0 4px 14px rgba(18, 194, 212, 0.4);
+  color: #07111f;
+}
+.emp-step-circle.c3 {
+  background: linear-gradient(135deg, var(--blue, #2b5de8) 0%, var(--blue-deep, #1a3fb8) 100%);
+  box-shadow: 0 4px 14px rgba(43, 93, 232, 0.4);
+  color: #ffffff;
+}
+.emp-step-circle.c4 {
+  background: linear-gradient(135deg, var(--lime, #c6ef3a) 0%, var(--green, #2ec27a) 100%);
+  box-shadow: 0 4px 14px rgba(198, 239, 58, 0.4);
+  color: #07111f;
+}
+
+.emp-step-text strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  color: #ffffff;
+}
+.emp-step-text span {
+  display: block;
+  font-size: 11.5px;
+  color: var(--muted, #8aa3bf);
+  margin-top: 1px;
+}
+
+.emp-step-arrow {
+  color: var(--muted, #8aa3bf);
+  opacity: 0.6;
+  font-size: 18px;
+  font-weight: 700;
+  padding: 0 4px;
+  margin-bottom: 24px;
+}
+
+/* Quote banner */
+.emp-progress-quote {
+  background: rgba(18, 194, 212, 0.12);
+  border: 1px solid rgba(18, 194, 212, 0.28);
+  border-radius: 12px;
+  padding: 13px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #5ce1e6;
+  text-align: center;
+  margin-top: auto;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+/* Terms in Dashboard Card */
+.emp-terms-list {
+  margin: 0;
+  padding: 0 0 0 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+}
+
+.emp-terms-item {
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--soft, #c5d6ea);
+}
+
+.emp-hl-yellow {
+  background: rgba(198, 239, 58, 0.18);
+  color: var(--lime, #c6ef3a);
+  font-weight: 700;
+  padding: 2px 5px;
+  border-radius: 4px;
+  border: 1px solid rgba(198, 239, 58, 0.32);
+}
+
+.emp-hl-green {
+  background: rgba(46, 194, 122, 0.2);
+  color: #4ade80;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid rgba(46, 194, 122, 0.35);
+}
+
+.emp-space-demo {
+  display: inline-flex;
+  align-items: center;
+  font-weight: 700;
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 1px 7px;
+  border-radius: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+.emp-space-bar {
+  display: inline-block;
+  width: 2px;
+  height: 12px;
+  background: var(--green, #2ec27a);
+  margin: 0 4px;
+  border-radius: 1px;
+  box-shadow: 0 0 6px rgba(46, 194, 122, 0.6);
+}
+
+/* Responsive Breakpoints */
+@media (max-width: 1180px) {
+  .emp-kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .emp-bottom-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .emp-hero-banner {
+    padding: 20px;
+  }
+  .emp-hero-clock-pill {
+    position: static;
+    margin-top: 16px;
+    display: inline-flex;
+  }
+  .emp-kpi-grid {
+    grid-template-columns: 1fr;
+  }
+  .emp-steps-flow {
+    flex-wrap: wrap;
+    gap: 16px;
+    justify-content: center;
+  }
+  .emp-step-arrow {
+    display: none;
+  }
+}

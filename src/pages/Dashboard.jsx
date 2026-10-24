@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { audioApi, dashApi, tasksApi } from '../services';
 import { useAuth } from '../contexts/AuthContext';
 import { useModal } from '../contexts/ModalContext';
@@ -8,13 +9,30 @@ import { useResource } from '../hooks/useResource';
 import { useRoster } from '../hooks/useRoster';
 import KpiCard from '../components/KpiCard';
 import StatusRing from '../components/StatusRing';
-import TaskTable from '../components/TaskTable';
 import { Page, Resource } from '../components/Page';
-import { useOpenTask } from '../modals/TaskModal';
 import { Mp3NotebookModal } from '../modals/SimpleModals';
-import { fmtDate, fmtDateTime, money, roleLabel } from '../utils/format';
+import { fmtDate, fmtDateTime, roleLabel } from '../utils/format';
 
 const small = { color: 'var(--muted)', fontSize: 12 };
+
+function formatHMS(totalSeconds) {
+  const sec = Math.max(0, Math.floor(Number(totalSeconds || 0)));
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = sec % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
+function WatermarkChart() {
+  return (
+    <svg className="emp-kpi-watermark" width="56" height="42" viewBox="0 0 56 42" fill="currentColor">
+      <rect x="4" y="24" width="8" height="18" rx="2" />
+      <rect x="18" y="16" width="8" height="26" rx="2" />
+      <rect x="32" y="8" width="8" height="34" rx="2" />
+      <rect x="46" y="0" width="8" height="42" rx="2" />
+    </svg>
+  );
+}
 
 function OverviewDashboard() {
   const { user } = useAuth(); const nav = useNav(); const roster = useRoster();
@@ -82,46 +100,321 @@ function OverviewDashboard() {
 }
 
 function EmployeeDashboard() {
-  const { user } = useAuth(); const { open } = useModal(); const toast = useToast(); const openTask = useOpenTask();
-  useHeader(`${user.name.split(' ')[0]}'s dashboard`, `${user.title} · ${user.department}`);
+  const { user } = useAuth();
+  const nav = useNav();
+  const { open } = useModal();
+  const toast = useToast();
+  useHeader('Dashboard', "Welcome back! Here's your workspace overview.");
+
+  const [currentTime, setCurrentTime] = useState(() => {
+    return new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+  });
+
+  useEffect(() => {
+    const updateTime = () => {
+      setCurrentTime(new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }));
+    };
+    const timer = setInterval(updateTime, 15000);
+    return () => clearInterval(timer);
+  }, []);
+
   const res = useResource(() => dashApi.mine(), [user.id]);
+
   const openTrack = async (id) => {
-    try { const list = await audioApi.assigned(); const item = list.find((x) => x.track.id === id); if (!item) return toast('That MP3 is no longer available.'); open(({ close }) => <Mp3NotebookModal item={item} close={close} />); }
-    catch (ex) { toast(ex.message); }
+    try {
+      const list = await audioApi.assigned();
+      const item = list.find((x) => x.track.id === id);
+      if (!item) return toast('That MP3 is no longer available.');
+      open(({ close }) => <Mp3NotebookModal item={item} close={close} />);
+    } catch (ex) {
+      toast(ex.message);
+    }
   };
+
   return (
-    <Resource res={res}>{(d) => (
-      <Page>
-        <div className="kpi-grid">
-          <KpiCard label="Assigned" value={d.kpis.assigned} sub="On your Pulse board" accent="#12c2d4" />
-          <KpiCard label="In motion" value={d.kpis.inMotion} sub="Actively shipping" accent="#ff8a2b" />
-          <KpiCard label="Cleared" value={d.kpis.cleared} sub={`${d.kpis.completionRate}% complete`} accent="#2ec27a" />
-          <KpiCard label="Wallet" value={money(d.wallet.currency, d.wallet.amount)} sub={d.wallet.name} accent="#2ec27a" />
-        </div>
-        <section className="panel" style={{ marginBottom: 14 }}>
-          <h3>Your wallet</h3>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-            <div><div style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-.03em' }}>{money(d.wallet.currency, d.wallet.amount)}</div><div style={{ color: 'var(--muted)', fontSize: 13, marginTop: 4 }}>{d.wallet.name} package</div></div>
-            <div style={{ color: 'var(--soft)', fontSize: 13, maxWidth: 420 }}>{d.wallet.note}</div>
-          </div>
-        </section>
-        <div className="grid-2">
-          <section className="panel"><h3>Your status ring</h3><StatusRing tasks={d.tasks} counts={d.statusCounts} nameOf={() => user.name} onNavigate={() => {}} /></section>
-          <section className="panel"><h3>Next seven days</h3>
-            {d.dueSoon.length ? d.dueSoon.map((t) => (
-              <div className="list-item" key={t.id}><div><strong>{t.title}</strong><div style={small}>{t.category} · due {fmtDate(t.due)}</div><div className="progress-bar"><span style={{ width: `${t.progress}%` }} /></div></div>
-                <button className="btn btn-ghost btn-sm" onClick={() => openTask(t)}>Update</button></div>)) : <div className="empty">Nothing due in the next week. Nice orbit.</div>}
-          </section>
-        </div>
-        <section className="panel" style={{ marginTop: 14 }}>
-          <h3>Assigned MP3s <small className="hint-inline">Click a track to open the notebook</small></h3>
-          {d.assignedTracks.length ? d.assignedTracks.map((t) => (
-            <div className="list-item kpi-link" key={t.id} data-mp3={t.id} style={{ cursor: 'pointer' }} onClick={() => openTrack(t.id)}>
-              <div style={{ flex: 1 }}><strong>{t.originalName}</strong><div style={small}>{t.projectName} · {t.notesWritten ? 'Notes written' : 'Click to listen & write'}</div></div>
-              <span className={`badge ${t.notesWritten ? 'st-Completed' : 'st-Pending'}`}>{t.notesWritten ? 'Written' : 'Open'}</span></div>)) : <div className="empty">No MP3 files assigned yet.</div>}
-        </section>
-        <section className="panel" style={{ marginTop: 14 }}><h3>Live assignments</h3><TaskTable tasks={d.tasks} showOwner={false} onOpen={openTask} /></section>
-      </Page>)}
+    <Resource res={res}>
+      {(d) => {
+        const walletAmount = d.wallet?.amount ?? 3400;
+        const ratePerHour = Math.round(walletAmount / 17) || 200;
+        const packageName = d.wallet?.name && d.wallet.name !== 'No package' ? d.wallet.name : `${walletAmount} Package`;
+        const completedTracks = (d.assignedTracks || []).filter((t) => t.notesWritten);
+        const audioGeneratedCount = completedTracks.length;
+        const totalDurationSec = completedTracks.reduce((acc, t) => acc + (t.duration || 0), 0);
+        const totalDurationFormatted = formatHMS(totalDurationSec);
+
+        return (
+          <Page>
+            <div className="emp-dashboard-container">
+              {/* Top Hero Banner */}
+              <section className="emp-hero-banner">
+                <div className="emp-hero-content">
+                  <h2 className="emp-hero-greeting">
+                    Hello, <span className="emp-hero-name">{user.name}</span> 👋
+                  </h2>
+                  <p className="emp-hero-sub">Welcome back! Let's transcribe, organize and grow together.</p>
+
+                  <div className="emp-hero-badges-row">
+                    <span className="emp-badge-pill">⏳ Earn from Your Skills</span>
+                    <span className="emp-badge-pill">📊 Work at Your Own Time</span>
+                    <span className="emp-badge-pill">🎯 Accurate Work = Higher Earnings</span>
+                  </div>
+
+                  <div>
+                    <button className="emp-start-task-btn" onClick={() => nav.go('notebook')}>
+                      Start Task Now <span>→</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="emp-hero-clock-pill">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10" />
+                    <polyline points="12 6 12 12 16 14" />
+                  </svg>
+                  <span>{currentTime}</span>
+                </div>
+              </section>
+
+              {/* 4 KPI Cards */}
+              <div className="emp-kpi-grid">
+                {/* 1. Total Income */}
+                <div className="emp-kpi-card teal">
+                  <div className="emp-kpi-header">
+                    <span className="emp-kpi-label">Total Income</span>
+                    <div className="emp-kpi-icon-box">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="2" y="4" width="20" height="16" rx="2" />
+                        <line x1="2" y1="10" x2="22" y2="10" />
+                      </svg>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="emp-kpi-value">{walletAmount}</div>
+                    <p className="emp-kpi-sub">Your total earnings so far</p>
+                  </div>
+                  <WatermarkChart />
+                </div>
+
+                {/* 2. Current Pack */}
+                <div className="emp-kpi-card blue">
+                  <div className="emp-kpi-header">
+                    <span className="emp-kpi-label">Current Pack ({packageName})</span>
+                    <div className="emp-kpi-icon-box">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+                        <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+                        <line x1="12" y1="22.08" x2="12" y2="12" />
+                      </svg>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="emp-kpi-value">Per Hour: ₹ {ratePerHour}</div>
+                    <p className="emp-kpi-sub">Your active earning package</p>
+                  </div>
+                  <WatermarkChart />
+                </div>
+
+                {/* 3. Total Audio Generated */}
+                <div className="emp-kpi-card purple">
+                  <div className="emp-kpi-header">
+                    <span className="emp-kpi-label">Total Audio Generated</span>
+                    <div className="emp-kpi-icon-box">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M9 18V5l12-2v13" />
+                        <circle cx="6" cy="18" r="3" />
+                        <circle cx="18" cy="16" r="3" />
+                      </svg>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="emp-kpi-value">{audioGeneratedCount}</div>
+                    <p className="emp-kpi-sub">Audio files completed</p>
+                  </div>
+                  <WatermarkChart />
+                </div>
+
+                {/* 4. Total Duration */}
+                <div className="emp-kpi-card amber">
+                  <div className="emp-kpi-header">
+                    <span className="emp-kpi-label">Total Duration</span>
+                    <div className="emp-kpi-icon-box">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="10" />
+                        <polyline points="12 6 12 12 16 14" />
+                      </svg>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="emp-kpi-value">{totalDurationFormatted}</div>
+                    <p className="emp-kpi-sub">Total transcription time</p>
+                  </div>
+                  <WatermarkChart />
+                </div>
+              </div>
+
+              {/* Bottom 2-Column Split: Your Progress + Terms & Conditions */}
+              <div className="emp-bottom-grid">
+                {/* Left: Your Progress */}
+                <section className="emp-panel-card">
+                  <div className="emp-panel-header">
+                    <div className="emp-panel-icon green">
+                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="18" y1="20" x2="18" y2="10" />
+                        <line x1="12" y1="20" x2="12" y2="4" />
+                        <line x1="6" y1="20" x2="6" y2="14" />
+                      </svg>
+                    </div>
+                    <div className="emp-panel-title-block">
+                      <h3>Your Progress</h3>
+                      <p>Keep working and track your growth here.</p>
+                    </div>
+                  </div>
+
+                  <div className="emp-steps-flow">
+                    {/* Step 1 */}
+                    <div className="emp-step-item">
+                      <div className="emp-step-circle c1">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                          <polyline points="14 2 14 8 20 8" />
+                          <line x1="16" y1="13" x2="8" y2="13" />
+                          <line x1="16" y1="17" x2="8" y2="17" />
+                          <polyline points="10 9 9 9 8 9" />
+                        </svg>
+                      </div>
+                      <div className="emp-step-text">
+                        <strong>Start Task</strong>
+                        <span>Pick an audio task</span>
+                      </div>
+                    </div>
+
+                    <div className="emp-step-arrow">→</div>
+
+                    {/* Step 2 */}
+                    <div className="emp-step-item">
+                      <div className="emp-step-circle c2">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="2" y="4" width="20" height="16" rx="2" />
+                          <line x1="6" y1="8" x2="6" y2="8" />
+                          <line x1="10" y1="8" x2="10" y2="8" />
+                          <line x1="14" y1="8" x2="14" y2="8" />
+                          <line x1="18" y1="8" x2="18" y2="8" />
+                          <line x1="6" y1="12" x2="6" y2="12" />
+                          <line x1="10" y1="12" x2="10" y2="12" />
+                          <line x1="14" y1="12" x2="14" y2="12" />
+                          <line x1="18" y1="12" x2="18" y2="12" />
+                          <line x1="7" y1="16" x2="17" y2="16" />
+                        </svg>
+                      </div>
+                      <div className="emp-step-text">
+                        <strong>Transcribe</strong>
+                        <span>Type accurately</span>
+                      </div>
+                    </div>
+
+                    <div className="emp-step-arrow">→</div>
+
+                    {/* Step 3 */}
+                    <div className="emp-step-item">
+                      <div className="emp-step-circle c3">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                          <polyline points="17 8 12 3 7 8" />
+                          <line x1="12" y1="3" x2="12" y2="15" />
+                        </svg>
+                      </div>
+                      <div className="emp-step-text">
+                        <strong>Submit</strong>
+                        <span>Submit for review</span>
+                      </div>
+                    </div>
+
+                    <div className="emp-step-arrow">→</div>
+
+                    {/* Step 4 */}
+                    <div className="emp-step-item">
+                      <div className="emp-step-circle c4">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="12" cy="8" r="7" />
+                          <polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88" />
+                        </svg>
+                      </div>
+                      <div className="emp-step-text">
+                        <strong>Earn</strong>
+                        <span>Get paid</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="emp-progress-quote">
+                    ⭐ "Consistent and accurate work helps you earn more and grow faster!"
+                  </div>
+                </section>
+
+                {/* Right: Terms & Conditions */}
+                <section className="emp-panel-card">
+                  <div className="emp-panel-header">
+                    <div className="emp-panel-icon mint">
+                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+                        <rect x="8" y="2" width="8" height="4" rx="1" ry="1" />
+                        <path d="M9 12h6" />
+                        <path d="M9 16h6" />
+                      </svg>
+                    </div>
+                    <div className="emp-panel-title-block">
+                      <h3>Terms &amp; Conditions</h3>
+                      <p>Please follow these important guidelines while doing work.</p>
+                    </div>
+                  </div>
+
+                  <ol className="emp-terms-list">
+                    <li className="emp-terms-item">
+                      1. Every <span className="emp-hl-yellow">Word's First Letter Must Be In Capital Letter</span>.
+                    </li>
+                    <li className="emp-terms-item">
+                      There should be space between two words. (<span className="emp-space-demo">A<span className="emp-space-bar"></span>B</span>)
+                    </li>
+                    <li className="emp-terms-item">
+                      All numbers or some symbols should be written in words. (e.g., <span className="emp-hl-yellow">1 = One, , = Comma</span>)
+                    </li>
+                    <li className="emp-terms-item">
+                      All mathematical symbols will be written in symbol form only. (e.g., <span className="emp-hl-green">+ , - , * , / , %</span>)
+                    </li>
+                    <li className="emp-terms-item">
+                      There should be no spelling mistake.
+                    </li>
+                    <li className="emp-terms-item">
+                      @ = At The Rate, # = Hassh
+                    </li>
+                  </ol>
+                </section>
+              </div>
+
+              {/* Quick Assigned MP3 Audio Notebook shortcuts if employee has files */}
+              {d.assignedTracks && d.assignedTracks.length > 0 && (
+                <section className="panel" style={{ marginTop: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                    <h3 style={{ margin: 0, fontSize: 16 }}>Assigned Audio Files <small className="hint-inline">Click to launch notebook &amp; transcribe</small></h3>
+                    <button className="btn btn-ghost btn-sm" onClick={() => nav.go('notebook')}>Go to Notebook →</button>
+                  </div>
+                  {d.assignedTracks.map((t) => (
+                    <div className="list-item kpi-link" key={t.id} data-mp3={t.id} style={{ cursor: 'pointer' }} onClick={() => openTrack(t.id)}>
+                      <div style={{ flex: 1 }}>
+                        <strong>{t.originalName}</strong>
+                        <div style={small}>{t.projectName} · {t.notesWritten ? 'Transcription completed' : 'Pending transcription'}</div>
+                      </div>
+                      <span className={`badge ${t.notesWritten ? 'st-Completed' : 'st-Pending'}`}>
+                        {t.notesWritten ? 'Completed' : 'Pending'}
+                      </span>
+                    </div>
+                  ))}
+                </section>
+              )}
+            </div>
+          </Page>
+        );
+      }}
     </Resource>
   );
 }
@@ -131,3 +424,4 @@ export default function Dashboard() {
   return user.role === 'employee' ? <EmployeeDashboard /> : <OverviewDashboard />;
 }
 export { EmployeeDashboard };
+

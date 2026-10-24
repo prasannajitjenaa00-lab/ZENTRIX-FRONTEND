@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { audioApi } from '../services';
+import { audioApi, tasksApi } from '../services';
 import { audioUrl } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useLive } from '../contexts/LiveContext';
@@ -23,8 +23,62 @@ function formatSecs(sec) {
   return `${m}:${s < 10 ? '0' : ''}${s}`;
 }
 
+const NUM_MAP = {
+  '0': 'Zero', '1': 'One', '2': 'Two', '3': 'Three', '4': 'Four',
+  '5': 'Five', '6': 'Six', '7': 'Seven', '8': 'Eight', '9': 'Nine',
+  '10': 'Ten', '11': 'Eleven', '12': 'Twelve', '13': 'Thirteen',
+  '14': 'Fourteen', '15': 'Fifteen', '16': 'Sixteen', '17': 'Seventeen',
+  '18': 'Eighteen', '19': 'Nineteen', '20': 'Twenty',
+  '30': 'Thirty', '40': 'Forty', '50': 'Fifty', '60': 'Sixty',
+  '70': 'Seventy', '80': 'Eighty', '90': 'Ninety', '100': 'Hundred'
+};
+
+function numberToWords(numStr) {
+  const n = parseInt(numStr, 10);
+  if (isNaN(n)) return numStr;
+  if (NUM_MAP[String(n)]) return NUM_MAP[String(n)];
+  if (n < 100) {
+    const tens = Math.floor(n / 10) * 10;
+    const ones = n % 10;
+    return `${NUM_MAP[String(tens)] || ''} ${NUM_MAP[String(ones)] || ''}`.trim();
+  }
+  return numStr.split('').map((d) => NUM_MAP[d] || d).join(' ');
+}
+
+export function isCapitalLetterCriteriaFulfilled(text) {
+  if (!text || !text.trim()) return false;
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return false;
+  for (const w of words) {
+    const match = w.match(/[a-zA-Z]/);
+    if (match && match[0] !== match[0].toUpperCase()) {
+      return false;
+    }
+  }
+  return true;
+}
+
+export function formatToTranscriptRules(str) {
+  if (!str) return '';
+  let res = str;
+  // Rule 6: @ = At The Rate, # = Hassh
+  res = res.replace(/@/g, ' At The Rate ');
+  res = res.replace(/#/g, ' Hassh ');
+  // Rule 3: , = Comma
+  res = res.replace(/,/g, ' Comma ');
+  // Rule 3: Numbers to words (e.g. 1 = One)
+  res = res.replace(/\b\d+\b/g, (match) => numberToWords(match));
+  res = res.replace(/\d/g, (d) => NUM_MAP[d] || d);
+  // Rule 2: Single space between words
+  res = res.replace(/[ \t]+/g, ' ');
+  // Rule 1: Every Word's First Letter Must Be In Capital Letter
+  res = res.replace(/(^|[\s\n\r])([a-z])/g, (_, space, char) => space + char.toUpperCase());
+  return res.trim();
+}
+
 export default function AssignedAudio() {
   const { user } = useAuth();
+  const nav = useNav();
   const toast = useToast();
   const { refresh } = useLive();
 
@@ -43,6 +97,7 @@ export default function AssignedAudio() {
       let statusColor = 'blue';
       let statusLabel = 'In Progress';
       if (st === 'assigned' || st === 'pending') { statusColor = 'amber'; statusLabel = 'Pending'; }
+      else if (st === 'approved' || st === 'reviewed') { statusColor = 'green'; statusLabel = 'Approved'; }
       else if (st === 'submitted') { statusColor = 'green'; statusLabel = 'Submitted'; }
       else if (st === 'revision_requested' || st === 'revision') { statusColor = 'red'; statusLabel = 'Revision'; }
       return {
@@ -87,8 +142,44 @@ export default function AssignedAudio() {
   }), [allTracks]);
 
   // Selected track state
-  const [selectedId, setSelectedId] = useState(null);
-  const [mobileTab, setMobileTab] = useState('list');
+  const [selectedId, setSelectedId] = useState(nav.audioId || nav.trackId || null);
+  const [mobileTab, setMobileTab] = useState(nav.audioId || nav.trackId || nav.taskTitle ? 'detail' : 'list');
+
+  // If navigated from "My Tasks" edit with audioId, trackId, or taskTitle, find and select that particular audio
+  useEffect(() => {
+    if (!allTracks.length) return;
+    if (nav.audioId) {
+      const found = allTracks.find((t) => t.id === nav.audioId || t.assignmentId === nav.audioId || t.realTrack?.id === nav.audioId);
+      if (found) {
+        setSelectedId(found.id);
+        setFilter('all');
+        setMobileTab('detail');
+        return;
+      }
+    }
+    if (nav.trackId) {
+      const found = allTracks.find((t) => t.realTrack?.id === nav.trackId || t.id === nav.trackId);
+      if (found) {
+        setSelectedId(found.id);
+        setFilter('all');
+        setMobileTab('detail');
+        return;
+      }
+    }
+    if (nav.taskTitle) {
+      const q = nav.taskTitle.toLowerCase();
+      const found = allTracks.find((t) => {
+        const name = (t.originalName || '').toLowerCase();
+        const pkg = (t.packageName || '').toLowerCase();
+        return name.includes(q) || q.includes(name) || pkg.includes(q) || q.includes(pkg);
+      });
+      if (found) {
+        setSelectedId(found.id);
+        setFilter('all');
+        setMobileTab('detail');
+      }
+    }
+  }, [nav.audioId, nav.trackId, nav.taskTitle, allTracks]);
 
   const selectedTrack = useMemo(() => {
     if (!allTracks.length) return null;
@@ -126,6 +217,13 @@ export default function AssignedAudio() {
   const editorRef = useRef(null);
 
   const textValue = selectedTrack ? (drafts[selectedTrack.id] ?? selectedTrack.notes ?? '') : '';
+
+  // Handle typing in transcription editor
+  const handleTextChange = (e) => {
+    const raw = e.target.value;
+    setDrafts((prev) => ({ ...prev, [selectedTrack.id]: raw }));
+    setLastSaved('just now');
+  };
 
   // Word count
   const wordCount = useMemo(() => {
@@ -228,14 +326,41 @@ export default function AssignedAudio() {
   const submitReview = async () => {
     if (!selectedTrack) return;
     if (!textValue.trim()) return toast('Enter your transcription before submitting.');
+
+    const isCapitalFulfilled = isCapitalLetterCriteriaFulfilled(textValue);
+    const targetStatus = isCapitalFulfilled ? 'Approved' : 'Pending';
+    const targetProgress = isCapitalFulfilled ? 100 : 50;
+
     setSubmitting(true);
     try {
       if (selectedTrack.realTrack?.id) {
         await audioApi.saveNote(selectedTrack.realTrack.id, textValue);
-        if (selectedTrack.assignmentId) await audioApi.submit(selectedTrack.assignmentId);
-        refresh();
+        if (selectedTrack.assignmentId) {
+          await audioApi.submit(selectedTrack.assignmentId);
+        }
       }
-      toast('Transcription submitted for review.');
+
+      // If a task ID was provided (or exists in user's tasks matching this track/assignment)
+      const passedTaskId = nav.params?.taskId;
+      if (passedTaskId) {
+        try {
+          await tasksApi.updateStatus(passedTaskId, { status: targetStatus, progress: targetProgress });
+        } catch {
+          // fallback if already handled by server
+        }
+      }
+
+      // Update local selectedTrack state immediately
+      selectedTrack.status = isCapitalFulfilled ? 'approved' : 'pending';
+      selectedTrack.statusLabel = isCapitalFulfilled ? 'Approved' : 'Pending';
+      selectedTrack.statusColor = isCapitalFulfilled ? 'green' : 'amber';
+
+      refresh();
+      if (isCapitalFulfilled) {
+        toast("Transcription submitted: Word's First Letter is Capitalized — Automatically Approved in My Tasks! 🎉");
+      } else {
+        toast("Transcription submitted: Word's First Letter criteria not fulfilled — Automatically marked as Pending in My Tasks.");
+      }
     } catch (e) {
       toast(e.message || 'Submission error.');
     } finally {
@@ -645,7 +770,6 @@ export default function AssignedAudio() {
                 </p>
               </div>
             </div>
-
             {/* "Your Transcription" Box */}
             <div className="transcription-workspace-card">
               <div className="card-top-head">
@@ -713,12 +837,9 @@ export default function AssignedAudio() {
                 ref={editorRef}
                 className="transcription-edit-area"
                 rows={8}
-                placeholder="Start typing the transcription here... (Manual typing required - Paste disabled)"
+                placeholder="Start typing the transcription here... (Every Word's First Letter Must Be Capitalized)"
                 value={textValue}
-                onChange={(e) => {
-                  setDrafts({ ...drafts, [selectedTrack.id]: e.target.value });
-                  setLastSaved('just now');
-                }}
+                onChange={handleTextChange}
                 onPaste={(e) => {
                   e.preventDefault();
                   toast('Pasting is disabled. Please type the transcription manually.');
@@ -788,8 +909,8 @@ export default function AssignedAudio() {
                   </svg>
                 </div>
                 <div className="action-text-block">
-                  <strong>{submitting ? 'Submitting...' : 'Submit for Review'}</strong>
-                  <p>Submit when transcription is complete</p>
+                  <strong>{submitting ? 'Submitting...' : (['approved', 'submitted', 'pending', 'reviewed'].includes(selectedTrack?.status) ? 'Re-submit Transcription' : 'Submit for Review')}</strong>
+                  <p>{['approved', 'submitted', 'pending', 'reviewed'].includes(selectedTrack?.status) ? 'Submit changes to re-evaluate transcription' : 'Submit when transcription is complete'}</p>
                 </div>
               </button>
             </div>

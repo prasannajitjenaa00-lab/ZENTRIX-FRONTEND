@@ -44,7 +44,7 @@ const nav = (label) => page.locator('#nav .nav-btn', { hasText: label }).first()
   await step('Completed slice goes to Completed board (original routed it to the wrong view)', async () => { await nav('Command center'); await page.click('.legend [data-st="Completed"]'); await page.waitForSelector('#page-title:has-text("Completed work")'); expect(await page.locator('.kpi').count() === 4); });
 
   /* ---------- EVERY ADMIN NAV ITEM ---------- */
-  for (const [label, title] of [['Active crew', 'Active crew'], ['Open work', 'Open work'], ['Monthly orbit', 'Monthly orbit'], ['All assignments', 'All assignments'], ['Assign work', 'Assign work'], ['Projects', 'Projects'], ['Packages', 'Packages'], ['Accounts', 'Accounts studio'], ['Studio chat', 'Studio chat']]) {
+  for (const [label, title] of [['Active crew', 'Active crew'], ['Open work', 'Open work'], ['All assignments', 'All assignments'], ['Assign work', 'Assign work'], ['Projects', 'Projects'], ['Packages', 'Packages'], ['Accounts', 'Accounts studio']]) {
     await step(`admin nav → ${label}`, async () => { await nav(label); await page.waitForFunction((t) => document.querySelector('#page-title')?.textContent === t, title, { timeout: 4000 }); await page.waitForTimeout(150); expect(await page.locator('#view').textContent() !== ''); });
   }
 
@@ -60,7 +60,7 @@ const nav = (label) => page.locator('#nav .nav-btn', { hasText: label }).first()
     await page.click('#today-btn'); await nav('Monthly orbit'); await page.waitForSelector('.cal-grid'); for (let i = 0; i < 1; i++) { /* ensure Sept */ }
     const sep = await page.evaluate(() => 0); await page.click('#prev-m').catch(() => {}); // may be Oct (today=Oct 15, 2026) -> back to Sept
     await page.waitForSelector('.chip'); await page.locator('.chip').first().click(); await page.waitForSelector('.modal');
-    for (const id of ['#f-title', '#f-desc', '#f-assignee', '#f-cat', '#f-start', '#f-due', '#f-pri', '#f-st', '#f-prog', '#f-notes', '#del-task']) expect(await page.locator(id).count() === 1, id);
+    for (const id of ['#f-title', '#f-desc', '#f-assignee', '#f-cat', '#f-start', '#f-due', '#f-st', '#f-prog', '#f-notes', '#del-task']) expect(await page.locator(id).count() === 1, id);
     await page.fill('#f-prog', '66'); await page.selectOption('#f-st', 'In Progress'); await page.click('#save-m'); await page.waitForFunction(() => !document.querySelector('.modal-back')); await toastHas('Pulse updated');
   });
   await step('task list: status filter + global search (≥2 chars) + New assignment creates a task visible in list', async () => {

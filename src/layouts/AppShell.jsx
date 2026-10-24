@@ -65,8 +65,6 @@ export function navItems(u) {
       ['dashboard', 'dashboard', 'Dashboard'],
       ['tasks', 'tasks', 'My Tasks'],
       ['notebook', 'audio', 'Assigned Audio'],
-      ['chat', 'chat', 'Studio Chat'],
-      ['calendar', 'calendar', 'My Calendar'],
       ['projects', 'dashboard', 'Projects'],
       ['assignments', 'audio', 'Translation Jobs'],
       ['packages', 'tasks', 'Packages'],
@@ -78,8 +76,6 @@ export function navItems(u) {
     ['dashboard', 'dashboard', 'Dashboard'],
     ['tasks', 'tasks', 'My Tasks'],
     ['notebook', 'audio', 'Assigned Audio'],
-    ['chat', 'chat', 'Studio Chat'],
-    ['calendar', 'calendar', 'My Calendar'],
     ['profile', 'profile', 'Profile'],
   ];
 }
@@ -291,14 +287,6 @@ export default function AppShell({ children }) {
                             <strong>Tasks Synchronized</strong>
                             <p>Task status and project queues updated in real time.</p>
                             <small>12m ago</small>
-                          </div>
-                        </div>
-                        <div className="notif-item" onClick={() => { goTo('chat'); setNotifOpen(false); }}>
-                          <div className="notif-bubble chat">💬</div>
-                          <div className="notif-info">
-                            <strong>Studio Chat Active</strong>
-                            <p>Connect with your production team in Studio Chat.</p>
-                            <small>1h ago</small>
                           </div>
                         </div>
                       </div>

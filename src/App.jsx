@@ -1,10 +1,11 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { LiveProvider } from './contexts/LiveContext';
 import { ModalProvider } from './contexts/ModalContext';
 import { NavProvider, useNav } from './contexts/NavContext';
 import { ToastProvider } from './contexts/ToastContext';
 import AppShell from './layouts/AppShell';
+import Landing from './pages/Landing';
 import AuthScreen, { ForcePasswordChange } from './pages/AuthScreen';
 import { AssignView, TasksView } from './pages/Tasks';
 import { ChatView, PackagesView, PeopleView } from './pages/Admin';
@@ -20,7 +21,6 @@ function View() {
   const { user } = useAuth(); const nav = useNav();
   const leadership = ['admin', 'floor_manager', 'team_leader'].includes(user.role);
   switch (nav.name) {
-    case 'calendar': return <Calendar />;
     case 'tasks': return <TasksView />;
     case 'assign': return leadership ? <AssignView /> : <Dashboard />;
     case 'people': return <PeopleView />;
@@ -28,7 +28,6 @@ function View() {
     case 'profile': return <Profile />;
     case 'crew': return leadership ? <CrewView /> : <Dashboard />;
     case 'open': case 'completed': case 'overdue': return leadership ? <BoardView kind={nav.name} /> : <Dashboard />;
-    case 'chat': return <ChatView />;
     case 'projects': return <Projects />;
     case 'assignments': return leadership ? <Assignments /> : <Dashboard />;
     case 'notebook': return <NotebookView />;
@@ -38,9 +37,10 @@ function View() {
 
 function Gate() {
   const { status, user } = useAuth(); const nav = useNav();
-  useEffect(() => { if (status === 'anon') nav.reset(); }, [status]);   // fresh dashboard on next sign-in
+  const [showAuth, setShowAuth] = useState(false);
+  useEffect(() => { if (status === 'anon') { nav.reset(); setShowAuth(false); } }, [status]);   // fresh dashboard on next sign-in
   if (status === 'loading') return <div className="app-bg-hold" />;
-  if (status === 'anon') return <AuthScreen />;
+  if (status === 'anon') return showAuth ? <AuthScreen onBack={() => setShowAuth(false)} /> : <Landing onLogin={() => setShowAuth(true)} />;
   if (user.mustChangePassword) return <ForcePasswordChange />;
   return <AppShell><View /></AppShell>;
 }

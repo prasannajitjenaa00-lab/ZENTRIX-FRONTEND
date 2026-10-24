@@ -27,32 +27,45 @@ function EditorBody({ task, close, presetOwner }) {
       return run(() => tasksApi.create(p), 'Pulse updated.');
     }
     if (admin) return run(() => tasksApi.update(task.id, formToPayload(form)), 'Pulse updated.');
-    return run(() => tasksApi.updateStatus(task.id, { status: form.status, progress: Math.max(0, Math.min(100, Number(form.progress || 0))), notes: form.notes.trim() }), 'Pulse updated.');
+    return run(() => tasksApi.updateStatus(task.id, {
+      title: form.title?.trim(),
+      description: form.description?.trim(),
+      status: form.status,
+      progress: Math.max(0, Math.min(100, Number(form.progress || 0))),
+      notes: form.notes.trim(),
+    }), 'Pulse updated.');
   };
   const remove = () => run(() => tasksApi.remove(task.id), 'Assignment removed.');
   const ownerPerson = task ? roster.map.get(task.assigneeId) : null;
 
   return (
     <>
-      <h3>{task ? task.title : 'New assignment'}</h3>
+      <h3>{task ? (admin ? task.title : 'Edit Task') : 'New assignment'}</h3>
       {error && <div className="auth-error" role="alert">{error}</div>}
       {!task || admin ? (
         <TaskForm value={form} onChange={setForm} employees={employees || []} roster={roster} extraOwner={task && ownerPerson ? ownerPerson : undefined} />
       ) : (
         <>
-          <p style={{ color: 'var(--soft)', marginBottom: 12 }}>{task.description}</p>
+          <div className="field">
+            <label htmlFor="f-title">Title</label>
+            <input id="f-title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Task title" />
+          </div>
+          <div className="field">
+            <label htmlFor="f-desc">Brief</label>
+            <textarea id="f-desc" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Context, links, definition of done" />
+          </div>
           <div className="row-2">
             <div className="field"><label htmlFor="f-st">Status</label><select id="f-st" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>{STATUS.map((s) => <option key={s}>{s}</option>)}</select></div>
             <div className="field"><label htmlFor="f-prog">Progress (%)</label><input id="f-prog" type="number" min="0" max="100" value={form.progress} onChange={(e) => setForm({ ...form, progress: e.target.value })} /></div>
           </div>
-          <div className="field"><label htmlFor="f-notes">Notes</label><textarea id="f-notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
-          <div style={{ color: 'var(--muted)', fontSize: 12, marginBottom: 8 }}>Due {fmtDate(task.due)} · {task.priority} · {task.category}</div>
+          <div className="field"><label htmlFor="f-notes">Notes</label><textarea id="f-notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Add progress notes or remarks" /></div>
+          <div style={{ color: 'var(--muted)', fontSize: 12, marginBottom: 8 }}>Due {fmtDate(task.due)} · {task.category}</div>
         </>
       )}
       <div className="modal-actions">
         {admin && task && <button className="btn btn-danger btn-sm" id="del-task" disabled={busy} onClick={remove}>Remove</button>}
         <button className="btn btn-ghost btn-sm" id="close-m" onClick={close}>{task ? 'Close' : 'Cancel'}</button>
-        <button className="btn btn-lime btn-sm" id="save-m" disabled={busy} onClick={save}>{task ? 'Save status' : 'Create'}</button>
+        <button className="btn btn-lime btn-sm" id="save-m" disabled={busy} onClick={save}>{task ? 'Save task' : 'Create'}</button>
       </div>
     </>
   );
