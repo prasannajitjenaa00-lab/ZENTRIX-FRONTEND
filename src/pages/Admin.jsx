@@ -44,15 +44,13 @@ export function PeopleView() {
   useEffect(() => { if (user.role !== 'admin') nav.go('dashboard'); }, [user, nav]);
   const users = useResource(async () => (await usersApi.list()).data, [user.id]);
   const pkgs = useResource(() => packagesApi.list(), [user.id]);
-  const tasks = useResource(async () => (await tasksApi.list()).data, [user.id]);
   const toggle = async (p) => { try { await usersApi.setStatus(p.id, p.status === 'Active' ? 'Suspended' : 'Active'); refresh(); } catch (ex) { toast(ex.message); } };
   return (
     <Resource res={users}>{(list) => {
       const pkgName = (id) => (pkgs.data || []).find((p) => p.id === id)?.name || 'No package';
-      const all = tasks.data || [];
       const orgLine = (p) => {
         if (p.role === 'employee') return `Package: ${pkgName(p.packageId)}`;
-        const mine = all.filter((t) => t.assigneeId === p.id); return `${mine.length} tasks · ${mine.filter((t) => t.status !== 'Completed').length} open`;
+        return 'System Administrator';
       };
       return (
         <Page>
