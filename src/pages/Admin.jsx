@@ -26,7 +26,7 @@ export function PackagesView() {
         {pkgs.length ? pkgs.map((p) => (
           <section className="panel" style={{ marginBottom: 10 }} key={p.id}>
             <div className="list-item" style={{ border: 0, padding: 0 }}>
-              <div><strong>{p.name}</strong><div style={{ color: 'var(--muted)', fontSize: 12 }}>{money(p.currency, p.amount)} · {p.note}</div></div>
+              <div><strong>{p.name}</strong><div style={{ color: 'var(--muted)', fontSize: 12, marginTop: 2 }}><span style={{ color: '#10b981', fontWeight: 600 }}>{p.currency}{p.ratePerHour || p.amount}/hr</span>{p.note ? ` · ${p.note}` : ''}</div></div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button className="btn btn-ghost btn-sm" onClick={() => open(({ close }) => <PackageModal pkg={p} close={close} />)}>Edit</button>
                 <button className="btn btn-danger btn-sm" onClick={() => del(p)}>Delete</button>
@@ -40,7 +40,7 @@ export function PackagesView() {
 
 export function PeopleView() {
   const { user } = useAuth(); const nav = useNav(); const { open } = useModal(); const toast = useToast(); const { refresh } = useLive();
-  useHeader('Accounts studio', 'Floor managers sit above team leaders. Every employee must report to a team leader.');
+  useHeader('Accounts studio', 'Manage Admin and Employee accounts and credentials.');
   useEffect(() => { if (user.role !== 'admin') nav.go('dashboard'); }, [user, nav]);
   const users = useResource(async () => (await usersApi.list()).data, [user.id]);
   const pkgs = useResource(() => packagesApi.list(), [user.id]);
@@ -48,12 +48,10 @@ export function PeopleView() {
   const toggle = async (p) => { try { await usersApi.setStatus(p.id, p.status === 'Active' ? 'Suspended' : 'Active'); refresh(); } catch (ex) { toast(ex.message); } };
   return (
     <Resource res={users}>{(list) => {
-      const byId = new Map(list.map((p) => [p.id, p])); const pkgName = (id) => (pkgs.data || []).find((p) => p.id === id)?.name || 'No package';
+      const pkgName = (id) => (pkgs.data || []).find((p) => p.id === id)?.name || 'No package';
       const all = tasks.data || [];
       const orgLine = (p) => {
-        if (p.role === 'employee') return `Reporting: ${byId.get(p.leaderId)?.name || 'Direct (Admin)'} · Package: ${pkgName(p.packageId)}`;
-        if (p.role === 'team_leader') return `Floor manager: ${byId.get(p.floorId)?.name || '—'} · ${list.filter((u) => u.role === 'employee' && u.leaderId === p.id && u.status === 'Active').length} employees`;
-        if (p.role === 'floor_manager') return `${list.filter((u) => u.role === 'team_leader' && u.floorId === p.id && u.status === 'Active').length} team leaders · ${list.filter((u) => u.role === 'employee' && u.floorId === p.id && u.status === 'Active').length} employees`;
+        if (p.role === 'employee') return `Package: ${pkgName(p.packageId)}`;
         const mine = all.filter((t) => t.assigneeId === p.id); return `${mine.length} tasks · ${mine.filter((t) => t.status !== 'Completed').length} open`;
       };
       return (
@@ -70,6 +68,7 @@ export function PeopleView() {
                       <strong>{p.name}</strong><div style={{ color: 'var(--muted)', fontSize: 12 }}>{roleLabel(p.role)} · {p.email}</div>
                       <div style={{ color: 'var(--soft)', fontSize: 12, marginTop: 4 }}>{orgLine(p)} · joined {fmtDate(p.joined)}</div>
                       <div style={{ color: 'var(--muted)', fontSize: 12, marginTop: 4 }}>{b?.account ? `Bank: ${b.name || '—'} · ${b.holder || ''} · A/c ${b.account} · IFSC ${b.ifsc || ''}${p.bank?.locked ? ' · locked' : ''}` : 'No bank details on file'}</div>
+                      <PasswordDisplay password={p.currentPassword} userEmail={p.email} />
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -120,3 +119,50 @@ export function ChatView() {
     </Resource>
   );
 }
+
+function PasswordDisplay({ password, userEmail }) {
+  const [show, setShow] = useState(false);
+  const toast = useToast();
+  if (!password) {
+    return (
+      <div style={{ marginTop: 4, fontSize: 11, color: 'var(--muted)' }}>
+        Password: <span style={{ opacity: 0.7 }}>[Encrypted / not recorded — reset to reveal]</span>
+      </div>
+    );
+  }
+  const copy = async (e) => {
+    e.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(password);
+      toast(`Password copied for ${userEmail || 'user'}`);
+    } catch {
+      toast('Could not copy to clipboard.');
+    }
+  };
+  return (
+    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginTop: 6, background: 'rgba(255, 255, 255, 0.04)', padding: '3px 8px', borderRadius: 6, border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+      <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600 }}>Password:</span>
+      <code style={{ fontSize: 12, fontFamily: 'monospace', letterSpacing: show ? '0' : '2px', color: show ? '#12c2d4' : 'var(--text)' }}>
+        {show ? password : '••••••••'}
+      </code>
+      <button
+        type="button"
+        className="btn btn-ghost btn-sm"
+        style={{ padding: '2px 6px', fontSize: 11, height: 'auto', minHeight: 0 }}
+        onClick={(e) => { e.stopPropagation(); setShow((s) => !s); }}
+      >
+        {show ? 'Hide' : 'Show'}
+      </button>
+      <button
+        type="button"
+        className="btn btn-ghost btn-sm"
+        style={{ padding: '2px 6px', fontSize: 11, height: 'auto', minHeight: 0 }}
+        onClick={copy}
+        title="Copy real password"
+      >
+        Copy
+      </button>
+    </div>
+  );
+}
+

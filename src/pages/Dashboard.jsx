@@ -134,13 +134,23 @@ function EmployeeDashboard() {
   return (
     <Resource res={res}>
       {(d) => {
-        const walletAmount = d.wallet?.amount ?? 3400;
-        const ratePerHour = Math.round(walletAmount / 17) || 200;
-        const packageName = d.wallet?.name && d.wallet.name !== 'No package' ? d.wallet.name : `${walletAmount} Package`;
-        const completedTracks = (d.assignedTracks || []).filter((t) => t.notesWritten);
+        const packageBaseAmount = d.wallet?.amount ?? 0;
+        const ratePerHour = d.wallet?.ratePerHour || (packageBaseAmount <= 2000 ? packageBaseAmount : 200);
+        const packageName = d.wallet?.name && d.wallet.name !== 'No package' ? d.wallet.name : `₹${packageBaseAmount} Package`;
+        const completedTracks = (d.assignedTracks || []).filter((t) => (t.listenedSeconds && t.listenedSeconds > 0) || t.notesWritten);
         const audioGeneratedCount = completedTracks.length;
-        const totalDurationSec = completedTracks.reduce((acc, t) => acc + (t.duration || 0), 0);
+        // Total duration strictly from actual seconds listened (not full audio duration)
+        const totalDurationSec = (d.assignedTracks || []).reduce((acc, t) => {
+          const localListened = typeof window !== 'undefined' ? (Number(localStorage.getItem('listened_' + t.id)) || 0) : 0;
+          const serverListened = t.listenedSeconds || 0;
+          const listened = Math.max(localListened, serverListened);
+          const maxDur = t.duration || Infinity;
+          return acc + Math.min(listened, maxDur);
+        }, 0);
         const totalDurationFormatted = formatHMS(totalDurationSec);
+        // Total Income = Package Base Amount (e.g. ₹3,500) + Audio Earnings
+        const audioEarned = Math.round((totalDurationSec / 3600) * ratePerHour);
+        const walletAmount = packageBaseAmount + audioEarned;
 
         return (
           <Page>
@@ -189,8 +199,12 @@ function EmployeeDashboard() {
                     </div>
                   </div>
                   <div>
-                    <div className="emp-kpi-value">{walletAmount}</div>
-                    <p className="emp-kpi-sub">Your total earnings so far</p>
+                    <div className="emp-kpi-value">₹ {walletAmount.toLocaleString()}</div>
+                    <p className="emp-kpi-sub">
+                      {totalDurationSec > 0
+                        ? `Base ₹${packageBaseAmount.toLocaleString()} + ₹${audioEarned.toLocaleString()} earned (${totalDurationFormatted})`
+                        : `Base ₹${packageBaseAmount.toLocaleString()} · ${packageName}`}
+                    </p>
                   </div>
                   <WatermarkChart />
                 </div>
@@ -209,7 +223,7 @@ function EmployeeDashboard() {
                   </div>
                   <div>
                     <div className="emp-kpi-value">Per Hour: ₹ {ratePerHour}</div>
-                    <p className="emp-kpi-sub">Your active earning package</p>
+                    <p className="emp-kpi-sub">Package Amount: ₹ {packageBaseAmount.toLocaleString()}</p>
                   </div>
                   <WatermarkChart />
                 </div>

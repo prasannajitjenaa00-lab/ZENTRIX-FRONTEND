@@ -2,11 +2,11 @@ import config from '../config';
 
 export const STATUS = ['Pending', 'In Progress', 'On Hold', 'Completed', 'Approved'];
 export const STATUS_COLOR = { Pending: '#12c2d4', 'In Progress': '#ff8a2b', 'On Hold': '#8b7cff', Completed: '#2ec27a', Approved: '#2ec27a' };
-export const ROLE_LABEL = { admin: 'Admin', floor_manager: 'Floor Manager', team_leader: 'Team Leader', employee: 'Employee' };
+export const ROLE_LABEL = { admin: 'Admin', employee: 'Employee' };
 export const MAX_PROJECT_UPLOAD = config.maxUploadFiles;
 
 
-export const roleLabel = (r) => ROLE_LABEL[r] || r || 'Employee';
+export const roleLabel = (r) => ROLE_LABEL[r] || (r === 'admin' ? 'Admin' : 'Employee');
 export const initials = (name) => (name || '?').split(' ').filter(Boolean).slice(0, 2).map((p) => p[0].toUpperCase()).join('');
 export function fmtDate(iso) {
   if (!iso) return '—';
@@ -41,7 +41,7 @@ export function passwordScore(v) {
 export const PASS_LABEL = ['Too short', 'Weak', 'Okay', 'Strong', 'Solid'];
 /** Role capabilities mirrored from the server (server remains the authority). */
 export const can = {
-  assignWork: (u) => !!u && ['admin', 'floor_manager', 'team_leader'].includes(u.role),
+  assignWork: (u) => u?.role === 'admin',
   manageAccounts: (u) => u?.role === 'admin',
   uploadProjects: (u) => u?.role === 'admin',
 };

@@ -25,6 +25,12 @@ export const usersApi = {
   updateBank: (id, b) => patch(`/api/users/${id}/bank`, b),
 };
 export const walletApi = { me: () => get('/api/wallet/me') };
+export const withdrawApi = {
+  me: () => get('/api/withdrawals/me'),
+  request: (b) => post('/api/withdrawals', b),
+  list: (q) => get(`/api/withdrawals${qs(q)}`),
+  updateStatus: (id, b) => patch(`/api/withdrawals/${id}`, b),
+};
 export const tasksApi = {
   list: (q) => getPage(`/api/tasks${qs({ limit: 500, ...q })}`),
   calendar: (month, assignee) => get(`/api/tasks/calendar${qs({ month, assignee })}`),
@@ -41,9 +47,11 @@ export const chatApi = { list: () => get('/api/chat'), post: (text) => post('/ap
 export const mfaApi = { recoveryCodes: () => post('/api/mfa/recovery-codes'), clearDevices: () => del('/api/devices') };
 export const audioApi = {
   projects: () => get('/api/projects'), createProject: (b) => post('/api/projects', b), tracks: (id) => get(`/api/projects/${id}/tracks`),
+  allTracks: () => get('/api/audio/all-tracks'),
+  deleteTrack: (id) => del(`/api/audio/tracks/${id}`),
   assign: (trackIds, assigneeIds, deadline) => post('/api/audio/assign', { trackIds, assigneeIds, ...(deadline ? { deadline } : {}) }),
   assigned: () => get('/api/audio/assigned'),
-  saveNote: (trackId, text) => put(`/api/notebooks/${trackId}`, { text }),
+  saveNote: (trackId, text, listenedSeconds) => put(`/api/notebooks/${trackId}`, { text, ...(listenedSeconds != null ? { listenedSeconds } : {}) }),
   getNote: (trackId) => get(`/api/notebooks/${trackId}`),
   assignments: (q) => getPage(`/api/audio/assignments${qs(q)}`),
   assignmentDetail: (id) => get(`/api/audio/assignments/${id}`),

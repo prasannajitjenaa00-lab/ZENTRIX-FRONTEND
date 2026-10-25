@@ -50,7 +50,7 @@ export default function Profile() {
             <div className="field"><label htmlFor="p-title">Title</label><input id="p-title" value={acct.title} onChange={(e) => setAcct({ ...acct, title: e.target.value })} /></div>
             <div className="field"><label htmlFor="p-dept">Department</label><input id="p-dept" value={user.department || ''} disabled readOnly /></div>
             <div className="field"><label>Email</label><input value={user.email} disabled readOnly /></div>
-            {w && <div className="field"><label>Wallet package</label><input value={`${w.name} · ${money(w.currency, w.amount)}`} disabled readOnly /></div>}
+            {w && <div className="field"><label>Wallet package</label><input value={`${w.name} · ${w.currency}${w.ratePerHour || w.amount}/hr`} disabled readOnly /></div>}
             <div className="field"><label htmlFor="p-cur">Current password</label><PasswordInput id="p-cur" value={acct.cur} onChange={(v) => setAcct({ ...acct, cur: v })} placeholder="Only needed to change your password" autoComplete="current-password" /></div>
             <div className="field"><label htmlFor="p-pass">New password</label><PasswordInput id="p-pass" value={acct.np} onChange={(v) => setAcct({ ...acct, np: v })} placeholder="Leave blank to keep" autoComplete="new-password" meter /></div>
             <button className="btn btn-primary" id="save-profile" style={{ width: 'auto' }} onClick={saveProfile}>Save profile</button>

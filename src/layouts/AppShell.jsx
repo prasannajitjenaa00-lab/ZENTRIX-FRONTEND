@@ -47,11 +47,37 @@ function NavIcon({ type }) {
           <line x1="3" y1="10" x2="21" y2="10" />
         </svg>
       );
+    case 'upload':
+      return (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+          <polyline points="17 8 12 3 7 8" />
+          <line x1="12" y1="3" x2="12" y2="15" />
+        </svg>
+      );
+    case 'assign':
+      return (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+          <circle cx="8.5" cy="7" r="4" />
+          <line x1="20" y1="8" x2="20" y2="14" />
+          <line x1="23" y1="11" x2="17" y2="11" />
+        </svg>
+      );
     case 'profile':
       return (
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
           <circle cx="12" cy="7" r="4" />
+        </svg>
+      );
+    case 'withdraw':
+      return (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="2" y="5" width="20" height="14" rx="2" />
+          <line x1="2" y1="10" x2="22" y2="10" />
+          <line x1="7" y1="15" x2="7.01" y2="15" />
+          <line x1="11" y1="15" x2="13" y2="15" />
         </svg>
       );
     default:
@@ -64,18 +90,22 @@ export function navItems(u) {
     return [
       ['dashboard', 'dashboard', 'Dashboard'],
       ['tasks', 'tasks', 'My Tasks'],
+      ['upload-audio', 'upload', 'Upload Audio'],
+      ['all-audio', 'audio', 'All Audio Files'],
+      ['assign-work', 'assign', 'Assign Work'],
       ['notebook', 'audio', 'Assigned Audio'],
-      ['projects', 'dashboard', 'Projects'],
-      ['assignments', 'audio', 'Translation Jobs'],
+      ['assignments', 'tasks', 'All Assignments'],
       ['packages', 'tasks', 'Packages'],
+      ['withdrawals', 'withdraw', 'Withdrawals'],
       ['people', 'profile', 'Accounts'],
       ['profile', 'profile', 'Profile'],
     ];
   }
   return [
     ['dashboard', 'dashboard', 'Dashboard'],
-    ['tasks', 'tasks', 'My Tasks'],
     ['notebook', 'audio', 'Assigned Audio'],
+    ['tasks', 'tasks', 'My Tasks'],
+    ['withdraw', 'withdraw', 'Withdraw'],
     ['profile', 'profile', 'Profile'],
   ];
 }
@@ -223,8 +253,8 @@ export default function AppShell({ children }) {
               <p id="page-sub">{header.sub}</p>
             </div>
             <div className="top-actions">
-              <div className="search-box">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2" style={{ position: 'absolute', left: 12, top: 12 }}>
+              <div className="search-box" style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2" style={{ position: 'absolute', left: 12, pointerEvents: 'none' }}>
                   <circle cx="11" cy="11" r="8" />
                   <line x1="21" y1="21" x2="16.65" y2="16.65" />
                 </svg>

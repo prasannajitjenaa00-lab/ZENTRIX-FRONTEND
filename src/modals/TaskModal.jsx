@@ -82,7 +82,7 @@ export function useOpenTask() {
 export function useOpenAssignTo() {
   const { open } = useModal(); const { user } = useAuth(); const toast = useToast();
   return (person) => {
-    if (!['admin', 'floor_manager', 'team_leader'].includes(user.role)) return toast('Only a floor manager, team leader, or admin can assign work.');
+    if (user.role !== 'admin') return toast('Only an admin can assign work.');
     open(({ close }) => <AssignToBody person={person} close={close} />);
   };
 }
@@ -99,7 +99,7 @@ function AssignToBody({ person, close }) {
   return (
     <>
       <h3>Assign work to {person.name}</h3>
-      <p className="hint" style={{ margin: '-6px 0 16px' }}>{person.role === 'employee' ? 'Employee' : person.role === 'team_leader' ? 'Team Leader' : person.role} · {person.title || ''}{person.leaderId && roster.name(person.leaderId) ? ` · reports to ${roster.name(person.leaderId)}` : ' · Direct to Admin'}</p>
+      <p className="hint" style={{ margin: '-6px 0 16px' }}>{person.role === 'admin' ? 'Admin' : 'Employee'}{person.title ? ` · ${person.title}` : ''}</p>
       {error && <div className="auth-error" role="alert">{error}</div>}
       <TaskForm value={form} onChange={setForm} employees={[person]} roster={roster} lockOwner />
       <div className="modal-actions"><button className="btn btn-ghost btn-sm" id="close-m" onClick={close}>Cancel</button><button className="btn btn-lime btn-sm" id="save-m" disabled={busy} onClick={save}>Assign task</button></div>

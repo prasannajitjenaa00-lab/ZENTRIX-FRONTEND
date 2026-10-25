@@ -15,19 +15,27 @@ import Dashboard from './pages/Dashboard';
 import Profile from './pages/Profile';
 import Projects, { NotebookView } from './pages/Projects';
 import Assignments from './pages/Assignments';
+import UploadAudioView from './pages/UploadAudio';
+import AllAudioView from './pages/AllAudio';
+import AssignWorkView from './pages/AssignWork';
+import WithdrawView, { AdminWithdrawalsView } from './pages/Withdraw';
 
 /** View router (the original's renderView map) with the same role fallbacks. */
 function View() {
   const { user } = useAuth(); const nav = useNav();
-  const leadership = ['admin', 'floor_manager', 'team_leader'].includes(user.role);
+  const leadership = user.role === 'admin';
   switch (nav.name) {
     case 'tasks': return <TasksView />;
-    case 'assign': return leadership ? <AssignView /> : <Dashboard />;
+    case 'assign': case 'assign-work': return leadership ? <AssignWorkView /> : <Dashboard />;
     case 'people': return <PeopleView />;
     case 'packages': return <PackagesView />;
+    case 'withdraw': return <WithdrawView />;
+    case 'withdrawals': return leadership ? <AdminWithdrawalsView /> : <WithdrawView />;
     case 'profile': return <Profile />;
     case 'crew': return leadership ? <CrewView /> : <Dashboard />;
     case 'open': case 'completed': case 'overdue': return leadership ? <BoardView kind={nav.name} /> : <Dashboard />;
+    case 'upload-audio': return leadership ? <UploadAudioView /> : <Dashboard />;
+    case 'all-audio': return leadership ? <AllAudioView /> : <Dashboard />;
     case 'projects': return <Projects />;
     case 'assignments': return leadership ? <Assignments /> : <Dashboard />;
     case 'notebook': return <NotebookView />;

@@ -39,7 +39,7 @@ export function CrewView() {
         return (
           <article className={`crew-card ${focus === p.id ? 'on' : ''}`} key={p.id} data-person={p.id} onClick={() => nav.patch({ person: focus === p.id ? '' : p.id })}>
             <div className="crew-top"><Avatar name={p.name} /><div><strong>{p.name}</strong>
-              <div className="muted">{roleLabel(p.role)}{p.leaderId ? ` · reports to ${roster.name(p.leaderId) || 'team leader'}` : ' · Direct to Admin'}</div></div><span className="badge st-Completed">{pct}%</span></div>
+              <div className="muted">{roleLabel(p.role)}</div></div><span className="badge st-Completed">{pct}%</span></div>
             <div className="progress-bar tall"><span style={{ width: `${pct}%` }} /></div>
             <div className="crew-stats"><span>{mine.length} assigned</span><span>{mine.filter((t) => t.status !== 'Completed').length} open</span><span>{mine.filter((t) => t.status === 'Completed').length} done</span><span className={late ? 'late' : ''}>{late} overdue</span></div>
             <div className="crew-actions"><button type="button" className="btn btn-primary btn-sm assign-to" onClick={(e) => { e.stopPropagation(); openAssignTo(p); }}>Assign task</button></div>
@@ -51,10 +51,10 @@ export function CrewView() {
       const bookPick = pick || people[0]?.id || '';
       return (
         <Page>
-          <div className="toolbar"><button className="btn btn-ghost btn-sm" onClick={() => nav.go('dashboard')}>← Command center</button><span className="hint-inline">{people.length} active · grouped by team leader</span></div>
+          <div className="toolbar"><button className="btn btn-ghost btn-sm" onClick={() => nav.go('dashboard')}>← Command center</button><span className="hint-inline">{people.length} active employee{people.length === 1 ? '' : 's'}</span></div>
           {groups.map(({ leader, members }) => (
             <div className="team-block" key={leader?.id || 'none'}>
-              <div className="team-heading"><div><span className="team-kicker">{leader ? 'Team leader' : 'Direct reporting'}</span><strong>{leader?.name || 'Studio Admin'}</strong>{leader?.floorId && roster.name(leader.floorId) ? <span className="muted"> · Floor · {roster.name(leader.floorId)}</span> : null}</div>
+              <div className="team-heading"><div><span className="team-kicker">Team</span><strong>{leader?.name || 'Studio Crew'}</strong></div>
                 <span className="team-count">{members.length} employee{members.length === 1 ? '' : 's'}</span></div>
               <div className="crew-grid">{members.map(card)}</div>
             </div>))}

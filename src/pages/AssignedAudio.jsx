@@ -239,6 +239,17 @@ export default function AssignedAudio() {
   const [playbackRate, setPlaybackRate] = useState(1);
   const [speedMenuOpen, setSpeedMenuOpen] = useState(false);
   const [volume, setVolume] = useState(0.85);
+  const lastSyncRef = useRef(0);
+
+  const syncListenedTime = (forcedSeconds) => {
+    if (!selectedTrack?.realTrack?.id) return;
+    const trackId = selectedTrack.realTrack.id;
+    const cur = forcedSeconds != null ? forcedSeconds : Math.floor(audioRef.current?.currentTime || 0);
+    const prevStored = Number(localStorage.getItem('listened_' + trackId)) || 0;
+    const maxVal = Math.max(prevStored, cur);
+    localStorage.setItem('listened_' + trackId, maxVal);
+    audioApi.saveNote(trackId, textValue, maxVal).catch(() => {});
+  };
 
   // Sync selected track duration & reset playback
   useEffect(() => {
@@ -310,7 +321,8 @@ export default function AssignedAudio() {
     setSaving(true);
     try {
       if (selectedTrack.realTrack?.id) {
-        await audioApi.saveNote(selectedTrack.realTrack.id, textValue);
+        const curSec = Math.floor(audioRef.current?.currentTime || 0);
+        await audioApi.saveNote(selectedTrack.realTrack.id, textValue, curSec);
         refresh();
       }
       setLastSaved('just now');
@@ -334,7 +346,8 @@ export default function AssignedAudio() {
     setSubmitting(true);
     try {
       if (selectedTrack.realTrack?.id) {
-        await audioApi.saveNote(selectedTrack.realTrack.id, textValue);
+        const curSec = Math.floor(audioRef.current?.currentTime || 0);
+        await audioApi.saveNote(selectedTrack.realTrack.id, textValue, curSec);
         if (selectedTrack.assignmentId) {
           await audioApi.submit(selectedTrack.assignmentId);
         }
@@ -381,11 +394,29 @@ export default function AssignedAudio() {
           }
         }}
         onTimeUpdate={() => {
-          if (audioRef.current) setCurrentTime(audioRef.current.currentTime);
+          if (audioRef.current) {
+            const cur = audioRef.current.currentTime;
+            setCurrentTime(cur);
+            if (selectedTrack?.realTrack?.id) {
+              const trackId = selectedTrack.realTrack.id;
+              const curSec = Math.floor(cur);
+              const prevStored = Number(localStorage.getItem('listened_' + trackId)) || 0;
+              if (curSec > prevStored) {
+                localStorage.setItem('listened_' + trackId, curSec);
+              }
+              const now = Date.now();
+              if (now - lastSyncRef.current > 4000) {
+                lastSyncRef.current = now;
+                audioApi.saveNote(trackId, textValue, Math.max(prevStored, curSec)).catch(() => {});
+              }
+            }
+          }
         }}
+        onPause={() => syncListenedTime()}
         onEnded={() => {
           setIsPlaying(false);
           setCurrentTime(0);
+          syncListenedTime(selectedTrack?.duration || Math.floor(audioRef.current?.duration || 0));
         }}
         onError={() => {
           if (isPlaying) {

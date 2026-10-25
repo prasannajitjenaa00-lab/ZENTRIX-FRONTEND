@@ -983,9 +983,23 @@ a {
   }
 }
 
+.search-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.search-box svg {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
 .search-box input {
   width: 240px;
-  padding: 10px 12px;
+  padding: 10px 12px 10px 36px;
 }
 
 .content {
@@ -2536,4 +2550,38 @@ tr:hover td {
   color: var(--muted);
   font-size: 12px;
   font-weight: 500;
+}
+
+/* Assignments Page Responsive Rules */
+.assignments-toolbar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin-bottom: 20px;
+  width: 100%;
+}
+
+.assignments-mobile-cards {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .assignments-toolbar {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .assignments-desktop-table {
+    display: none !important;
+  }
+  .assignments-mobile-cards {
+    display: flex !important;
+    flex-direction: column;
+    gap: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .assignments-toolbar {
+    grid-template-columns: 1fr;
+  }
 }

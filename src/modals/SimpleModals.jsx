@@ -6,26 +6,146 @@ import { useToast } from '../contexts/ToastContext';
 import { useResource } from '../hooks/useResource';
 import { fmtDateTime } from '../utils/format';
 
+const RATE_PRESETS = [150, 200, 250, 300, 400, 500];
+
 export function PackageModal({ pkg, close }) {
   const toast = useToast(); const { refresh } = useLive();
-  const [f, setF] = useState({ name: pkg?.name || '', amount: pkg?.amount ?? 0, currency: pkg?.currency || '₹', note: pkg?.note || '' }); const [error, setError] = useState('');
+  const initialRate = pkg?.ratePerHour ?? pkg?.amount ?? 200;
+  const [f, setF] = useState({
+    name: pkg?.name || (pkg ? '' : '₹200/hr Package'),
+    amount: initialRate,
+    currency: pkg?.currency || '₹',
+    note: pkg?.note || (pkg ? '' : '₹200 per hour income')
+  });
+  const [error, setError] = useState('');
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+
+  const selectRate = (rate) => {
+    setF((prev) => ({
+      ...prev,
+      amount: rate,
+      name: !prev.name || prev.name.includes('/hr') ? `${prev.currency || '₹'}${rate}/hr Package` : prev.name,
+      note: !prev.note || prev.note.includes('per hour') ? `${prev.currency || '₹'}${rate} per hour income` : prev.note
+    }));
+  };
+
   const save = async () => {
     if (!f.name.trim()) return toast('Package name is required.');
-    const body = { name: f.name.trim(), amount: Number(f.amount) || 0, currency: f.currency.trim() || '₹', note: f.note.trim() };
-    try { if (pkg) await packagesApi.update(pkg.id, body); else await packagesApi.create(body); refresh(); close(); toast(pkg ? 'Package updated.' : 'Package created.'); }
-    catch (ex) { setError(ex.details ? Object.values(ex.details).join(' ') : ex.message); }
+    const hourlyIncome = Number(f.amount) || 0;
+    const body = {
+      name: f.name.trim(),
+      amount: hourlyIncome,
+      ratePerHour: hourlyIncome,
+      currency: f.currency.trim() || '₹',
+      note: f.note.trim()
+    };
+    try {
+      if (pkg) await packagesApi.update(pkg.id, body);
+      else await packagesApi.create(body);
+      refresh();
+      close();
+      toast(pkg ? 'Package updated.' : 'Package created.');
+    } catch (ex) {
+      setError(ex.details ? Object.values(ex.details).join(' ') : ex.message);
+    }
   };
+
+  const currentRate = Number(f.amount) || 0;
+
   return (
     <>
-      <h3>{pkg ? 'Edit package' : 'Create package'}</h3>{error && <div className="auth-error" role="alert">{error}</div>}
-      <div className="field"><label htmlFor="pkg-name">Package name</label><input id="pkg-name" value={f.name} onChange={set('name')} /></div>
-      <div className="row-2">
-        <div className="field"><label htmlFor="pkg-amount">Amount (₹)</label><input id="pkg-amount" type="number" min="0" value={f.amount} onChange={set('amount')} /></div>
-        <div className="field"><label htmlFor="pkg-currency">Currency symbol</label><input id="pkg-currency" value={f.currency} onChange={set('currency')} /></div>
+      <h3>{pkg ? 'Edit package' : 'Create package'}</h3>
+      {error && <div className="auth-error" role="alert">{error}</div>}
+
+      <div className="field">
+        <label htmlFor="pkg-name">Package name</label>
+        <input id="pkg-name" value={f.name} onChange={set('name')} placeholder="e.g. ₹200/hr Package, Silver, Gold" />
       </div>
-      <div className="field"><label htmlFor="pkg-note">Note</label><input id="pkg-note" value={f.note} onChange={set('note')} placeholder="Shown in the employee wallet" /></div>
-      <div className="modal-actions"><button className="btn btn-ghost btn-sm" id="close-m" onClick={close}>Cancel</button><button className="btn btn-lime btn-sm" id="save-pkg" onClick={save}>Save package</button></div>
+
+      {/* Select Per Hour Income Section */}
+      <div className="field" style={{ marginBottom: 8 }}>
+        <label htmlFor="pkg-preset-select">
+          Select per hour income
+          <span style={{ color: '#10b981', fontWeight: 600, marginLeft: 8 }}>
+            (Active: {f.currency || '₹'} {currentRate} / hour)
+          </span>
+        </label>
+        <select
+          id="pkg-preset-select"
+          value={RATE_PRESETS.includes(currentRate) ? currentRate : 'custom'}
+          onChange={(e) => {
+            const v = e.target.value;
+            if (v !== 'custom') selectRate(Number(v));
+          }}
+        >
+          <option value="custom">-- Select hourly rate or enter below --</option>
+          {RATE_PRESETS.map((r) => (
+            <option key={r} value={r}>
+              {f.currency || '₹'} {r} / hour {r === 200 ? '(Popular)' : r === 300 ? '(Recommended)' : ''}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Quick Select Buttons */}
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
+        {RATE_PRESETS.map((rate) => {
+          const isSelected = currentRate === rate;
+          return (
+            <button
+              key={rate}
+              type="button"
+              className={`btn btn-xs ${isSelected ? 'btn-lime' : 'btn-ghost'}`}
+              style={{
+                borderRadius: 16,
+                padding: '4px 12px',
+                fontSize: 12,
+                fontWeight: isSelected ? 700 : 500,
+                border: isSelected ? '1px solid #10b981' : '1px solid rgba(255,255,255,0.12)',
+                background: isSelected ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255,255,255,0.03)',
+                color: isSelected ? '#10b981' : 'var(--text)'
+              }}
+              onClick={() => selectRate(rate)}
+            >
+              {f.currency || '₹'}{rate}/hr
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="row-2">
+        <div className="field">
+          <label htmlFor="pkg-amount">Per hour income ({f.currency || '₹'}/hr)</label>
+          <input
+            id="pkg-amount"
+            type="number"
+            min="0"
+            step="10"
+            value={f.amount}
+            onChange={set('amount')}
+            placeholder="e.g. 200, 300"
+          />
+        </div>
+        <div className="field">
+          <label htmlFor="pkg-currency">Currency symbol</label>
+          <input id="pkg-currency" value={f.currency} onChange={set('currency')} />
+        </div>
+      </div>
+
+      <div className="field">
+        <label htmlFor="pkg-note">Note</label>
+        <input
+          id="pkg-note"
+          value={f.note}
+          onChange={set('note')}
+          placeholder="e.g. ₹200 per hour income for audio transcription"
+        />
+      </div>
+
+      <div className="modal-actions">
+        <button className="btn btn-ghost btn-sm" id="close-m" onClick={close}>Cancel</button>
+        <button className="btn btn-lime btn-sm" id="save-pkg" onClick={save}>Save package</button>
+      </div>
     </>
   );
 }
