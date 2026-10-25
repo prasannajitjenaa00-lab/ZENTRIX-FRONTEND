@@ -32,13 +32,21 @@ const DEV_ACCOUNTS = [
 function LoginCard({ onForgot, prefillEmail }) {
   const { signedIn } = useAuth(); const toast = useToast();
   const [email, setEmail] = useState(prefillEmail || ''); const [password, setPassword] = useState(''); const [error, setError] = useState(''); const [busy, setBusy] = useState(false);
+  const [slowWait, setSlowWait] = useState(false);
   const submit = async (e) => {
-    e.preventDefault(); setError(''); setBusy(true);
+    e.preventDefault(); setError(''); setBusy(true); setSlowWait(false);
+    const slowTimer = setTimeout(() => setSlowWait(true), 2500);
     try {
       const out = await authApi.login(email, password);
       signedIn(out.user);
       toast(`Welcome back, ${out.user.name.split(' ')[0]}.`);
-    } catch (ex) { setError(ex.message || 'Could not sign in.'); } finally { setBusy(false); }
+    } catch (ex) {
+      setError(ex.message || 'Could not sign in.');
+    } finally {
+      clearTimeout(slowTimer);
+      setBusy(false);
+      setSlowWait(false);
+    }
   };
   return (
     <form className={card()} id="login-form" onSubmit={submit}>
@@ -46,7 +54,23 @@ function LoginCard({ onForgot, prefillEmail }) {
       <Err msg={error} />
       <div className="field"><label htmlFor="login-email">Work email</label><input id="login-email" type="email" autoComplete="username" placeholder="nina.v@example.com" required value={email} onChange={(e) => setEmail(e.target.value)} /></div>
       <div className="field"><label htmlFor="login-password">Password</label><PasswordInput id="login-password" value={password} onChange={setPassword} placeholder="••••••••" required /></div>
-      <button className="btn btn-primary" type="submit" disabled={busy}>Enter workspace</button>
+      <button className="btn btn-primary" type="submit" disabled={busy}>
+        {busy ? (
+          <span className="btn-spinner">
+            <svg className="spin-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+            </svg>
+            Please wait...
+          </span>
+        ) : (
+          'Enter workspace'
+        )}
+      </button>
+      {slowWait && (
+        <p className="hint" style={{ marginTop: 8, textAlign: 'center', fontSize: 12, color: 'var(--accent, #12c2d4)' }}>
+          Connecting to server, please hold on...
+        </p>
+      )}
       <div className="auth-links"><button type="button" className="linkish" id="go-forgot" onClick={() => onForgot(email.trim())}>Forgot password?</button></div>
       {import.meta.env?.DEV && (
         <div className="hint-inline" id="dev-autofill" style={{ marginTop: 14, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
