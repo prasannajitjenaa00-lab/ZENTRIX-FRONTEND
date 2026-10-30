@@ -45,9 +45,8 @@ function OverviewDashboard() {
       <Page>
         <div className="kpi-grid">
           <KpiCard label="Active crew" value={k.activeCrew} sub={`${k.accounts} accounts in studio`} accent="#12c2d4" onClick={() => nav.go('crew')} />
-          <KpiCard label="Open work" value={k.openWork} sub={`${k.totalTasks} total · ${k.avgProgress}% avg progress`} accent="#ff8a2b" onClick={() => nav.go('open')} />
+          <KpiCard label="Open work" value={k.openWork} sub={`${k.completedAudios ?? k.completed ?? 0} audio completed`} accent="#ff8a2b" onClick={() => nav.go('open')} />
           <KpiCard label="Completion" value={`${k.completionRate}%`} sub={`${k.completed} closed · live employee %`} accent="#2ec27a" />
-          <KpiCard label="Overdue" value={k.overdue} sub="Need a status nudge" accent="#ff5a32" />
         </div>
         <div className="grid-2">
           <section className="panel">
@@ -55,21 +54,26 @@ function OverviewDashboard() {
             <StatusRing tasks={tasks.data || []} counts={d.statusCounts} nameOf={roster.name} onNavigate={nav.go} />
           </section>
           <section className="panel">
-            <h3>Active team members <small className="hint-inline">Work progress</small></h3>
-            {d.activeMembers.length ? d.activeMembers.map((p) => (
-              <div className="list-item" key={p.id}>
-                <div style={{ flex: 1 }}><strong>{p.name}</strong><div style={small}>{roleLabel(p.role)} · {p.open} open</div><div className="progress-bar"><span style={{ width: `${p.pct}%` }} /></div></div>
-                <span className="badge st-Completed">{p.pct}%</span>
-              </div>)) : <div className="empty">No active team members.</div>}
+            <h3>Studio activity</h3>
+            {d.activity.map((a) => (
+              <div className="list-item" key={a.id}>
+                <div style={{ fontSize: 13 }}>
+                  {a.text}
+                  <div style={{ color: 'var(--muted)', fontSize: 11, marginTop: 4 }}>{fmtDateTime(a.at)}</div>
+                </div>
+              </div>
+            ))}
           </section>
         </div>
-        <div className="grid-2" style={{ marginTop: 14 }}>
-          <section className="panel"><h3>Upcoming due dates</h3>
-            {d.upcoming.map((t) => (
-              <div className="list-item" key={t.id}><div><strong>{t.title}</strong><div style={small}>{t.assigneeName} · due {fmtDate(t.due)}</div></div><span className={`badge st-${t.status}`}>{t.status}</span></div>))}
-          </section>
-          <section className="panel"><h3>Studio activity</h3>
-            {d.activity.map((a) => (<div className="list-item" key={a.id}><div style={{ fontSize: 13 }}>{a.text}<div style={{ color: 'var(--muted)', fontSize: 11, marginTop: 4 }}>{fmtDateTime(a.at)}</div></div></div>))}
+        <div style={{ marginTop: 14 }}>
+          <section className="panel">
+            <h3>Upcoming due dates</h3>
+            {d.upcoming.length ? d.upcoming.map((t) => (
+              <div className="list-item" key={t.id}>
+                <div><strong>{t.title}</strong><div style={small}>{t.assigneeName} · due {fmtDate(t.due)}</div></div>
+                <span className={`badge st-${t.status}`}>{t.status}</span>
+              </div>
+            )) : <div className="empty">No upcoming due dates.</div>}
           </section>
         </div>
         <div className="grid-2" style={{ marginTop: 14 }}>
@@ -139,16 +143,17 @@ function EmployeeDashboard() {
         const packageName = d.wallet?.name && d.wallet.name !== 'No package' ? d.wallet.name : `₹${packageBaseAmount} Package`;
         const completedTracks = (d.assignedTracks || []).filter((t) => (t.listenedSeconds && t.listenedSeconds > 0) || t.notesWritten);
         const audioGeneratedCount = completedTracks.length;
-        // Total duration strictly from actual seconds listened (not full audio duration)
+        // Total duration from completed audio tasks and listening time
         const totalDurationSec = (d.assignedTracks || []).reduce((acc, t) => {
           const localListened = typeof window !== 'undefined' ? (Number(localStorage.getItem('listened_' + t.id)) || 0) : 0;
           const serverListened = t.listenedSeconds || 0;
           const listened = Math.max(localListened, serverListened);
-          const maxDur = t.duration || Infinity;
-          return acc + Math.min(listened, maxDur);
+          const isDone = t.notesWritten || ['submitted', 'approved', 'reviewed'].includes(t.status);
+          const effective = isDone && t.duration ? Math.max(t.duration, listened) : Math.min(listened, t.duration || Infinity);
+          return acc + effective;
         }, 0);
         const totalDurationFormatted = formatHMS(totalDurationSec);
-        // Total Income = Package Base Amount (e.g. ₹3,500) + Audio Earnings
+        // Total Income = Package Price (e.g. ₹4,500) + Audio Earnings (calculated per hour price)
         const audioEarned = Math.round((totalDurationSec / 3600) * ratePerHour);
         const walletAmount = packageBaseAmount + audioEarned;
 
@@ -229,7 +234,7 @@ function EmployeeDashboard() {
                 </div>
 
                 {/* 3. Total Audio Generated */}
-                <div className="emp-kpi-card purple">
+                <div className="emp-kpi-card purple" style={{ cursor: 'pointer' }} onClick={() => nav.go('work-history')} title="Click to view your submitted Work History">
                   <div className="emp-kpi-header">
                     <span className="emp-kpi-label">Total Audio Generated</span>
                     <div className="emp-kpi-icon-box">
@@ -242,7 +247,7 @@ function EmployeeDashboard() {
                   </div>
                   <div>
                     <div className="emp-kpi-value">{audioGeneratedCount}</div>
-                    <p className="emp-kpi-sub">Audio files completed</p>
+                    <p className="emp-kpi-sub">Audio files completed · View history →</p>
                   </div>
                   <WatermarkChart />
                 </div>
@@ -438,4 +443,3 @@ export default function Dashboard() {
   return user.role === 'employee' ? <EmployeeDashboard /> : <OverviewDashboard />;
 }
 export { EmployeeDashboard };
-

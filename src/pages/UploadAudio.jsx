@@ -9,6 +9,27 @@ import { useResource } from '../hooks/useResource';
 import { Page, Resource } from '../components/Page';
 import { MAX_PROJECT_UPLOAD } from '../utils/format';
 
+function readAudioDuration(file) {
+  return new Promise((resolve) => {
+    try {
+      const url = URL.createObjectURL(file);
+      const audio = new Audio();
+      audio.preload = 'metadata';
+      audio.onloadedmetadata = () => {
+        URL.revokeObjectURL(url);
+        resolve(audio.duration && Number.isFinite(audio.duration) ? Math.round(audio.duration) : null);
+      };
+      audio.onerror = () => {
+        URL.revokeObjectURL(url);
+        resolve(null);
+      };
+      audio.src = url;
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
 export default function UploadAudioView() {
   const { user } = useAuth();
   const toast = useToast();
@@ -79,10 +100,19 @@ export default function UploadAudioView() {
 
     try {
       const projectId = await getOrCreateProject(plist);
+      const durations = {};
+      await Promise.all(
+        selectedFiles.map(async (f) => {
+          const d = await readAudioDuration(f);
+          if (d) durations[f.name] = d;
+        })
+      );
       const out = await uploadTracks(projectId, selectedFiles, (progress) => {
         setUploadPct(Math.round(progress * 100));
         setStatusMsg(`Uploading… ${Math.round(progress * 100)}%`);
-      });
+      }, durations);
+
+
 
       const ok = out.tracks?.length || 0;
       toast(`Successfully uploaded ${ok} audio file${ok === 1 ? '' : 's'}!`);

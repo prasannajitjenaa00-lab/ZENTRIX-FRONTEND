@@ -7,7 +7,11 @@ import config from '../config';
 const LiveCtx = createContext({ version: 0, online: [], connection: 'connecting', subscribe: () => () => {}, refresh: () => {} });
 export const useLive = () => useContext(LiveCtx);
 
-const REFETCH_EVENTS = ['task:created', 'task:updated', 'task:deleted', 'activity:new', 'user:created', 'user:updated', 'track:assigned'];
+const REFETCH_EVENTS = [
+  'task:created', 'task:updated', 'task:deleted',
+  'activity:new', 'user:created', 'user:updated',
+  'track:assigned', 'package:created', 'package:updated', 'package:deleted'
+];
 
 /**
  * Socket.IO is a *hint* channel: events tell pages to refetch REST data (REST is the source of truth).
@@ -46,6 +50,8 @@ export function LiveProvider({ children }) {
     socket.on('presence:update', (p) => setOnline(p.online || []));
     REFETCH_EVENTS.forEach((ev) => socket.on(ev, (p) => { if (fresh(p)) bump(); }));
     socket.on('chat:message', (p) => { if (fresh(p)) subs.current.get('chat:message')?.forEach((fn) => fn(p.message)); });
+    socket.on('help:message', (p) => { if (fresh(p)) subs.current.get('help:message')?.forEach((fn) => fn(p.message)); });
+    socket.on('help:resolved', (p) => { if (fresh(p)) subs.current.get('help:resolved')?.forEach((fn) => fn(p.message)); });
     return () => { socket.off(); socket.close(); clearTimeout(timer.current); };
   }, [status, bump]);
 

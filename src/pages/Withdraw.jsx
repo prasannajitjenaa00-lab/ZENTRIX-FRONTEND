@@ -669,8 +669,8 @@ export function AdminWithdrawalsView() {
                         return (
                           <tr key={row.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
                             <td style={{ padding: '12px', fontSize: 13 }}>
-                              <strong>{row.user?.name || 'Employee'}</strong>
-                              <div style={{ color: 'var(--muted)', fontSize: 11 }}>{row.user?.email}</div>
+                              <strong>{row.employeeName || row.user?.name || 'Employee'}</strong>
+                              <div style={{ color: 'var(--muted)', fontSize: 11 }}>{row.employeeEmail || row.user?.email || ''}</div>
                             </td>
                             <td style={{ padding: '12px', fontSize: 14, fontWeight: 700, color: '#fff' }}>
                               {row.currency}{row.amount.toLocaleString()}

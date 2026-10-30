@@ -1,435 +1,546 @@
-import { useState } from 'react';
-import { audioApi, usersApi } from '../services';
+import { useMemo, useState } from 'react';
+import { audioApi } from '../services';
 import { useAuth } from '../contexts/AuthContext';
 import { useLive } from '../contexts/LiveContext';
 import { useModal } from '../contexts/ModalContext';
-import { useToast } from '../contexts/ToastContext';
 import { useHeader } from '../layouts/HeaderContext';
 import { useResource } from '../hooks/useResource';
 import { Page, Resource } from '../components/Page';
 import { AssignmentReviewModal } from '../modals/SimpleModals';
-import { fmtDate, fmtDateTime } from '../utils/format';
 
-const STATUS_OPTIONS = [
-  ['', 'All statuses'],
-  ['assigned', 'Pending'],
-  ['in_progress', 'In Progress'],
-  ['submitted', 'Submitted'],
-  ['reviewed', 'Reviewed'],
-  ['revision_requested', 'Revision requested'],
-  ['overdue', 'Overdue'],
-];
+function formatDuration(sec) {
+  const s = Math.max(0, Math.round(Number(sec) || 0));
+  const hrs = Math.floor(s / 3600);
+  const mins = Math.floor((s % 3600) / 60);
+  const secs = s % 60;
+  return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+}
+
+function EmployeeAssignmentsModal({ employee, close, onChanged }) {
+  const { open } = useModal();
+  const res = useResource(async () => {
+    const out = await audioApi.assignments({ employee: employee.id, limit: 100 });
+    return out.data || [];
+  }, [employee.id]);
+
+  const openReview = (row) => {
+    open(({ close: closeRev }) => (
+      <AssignmentReviewModal
+        row={row}
+        close={closeRev}
+        onChanged={() => {
+          onChanged?.();
+          closeRev();
+        }}
+      />
+    ));
+  };
+
+  return (
+    <>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <div>
+          <h3 style={{ margin: 0, fontSize: 18, color: 'var(--white)' }}>
+            {employee.name} — Assigned Audios
+          </h3>
+          <div style={{ fontSize: 12, color: 'var(--teal)', fontFamily: 'monospace', marginTop: 2 }}>
+            {employee.email || employee.legacyId || ''}
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={close}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            fontSize: 22,
+            cursor: 'pointer',
+            color: 'var(--muted)',
+            lineHeight: 1,
+            padding: 0,
+          }}
+        >
+          ×
+        </button>
+      </div>
+
+      <Resource res={res}>
+        {(rows) => (
+          <div style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+            {!rows.length ? (
+              <div style={{ padding: '24px 0', textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>
+                No audio files assigned to this employee.
+              </div>
+            ) : (
+              <div className="table-wrap">
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid var(--line)', color: 'var(--muted)', fontSize: 12, textTransform: 'uppercase' }}>
+                      <th style={{ padding: '10px 12px' }}>Track</th>
+                      <th style={{ padding: '10px 12px' }}>Duration</th>
+                      <th style={{ padding: '10px 12px' }}>Status</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'right' }}>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((r) => (
+                      <tr key={r.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                        <td style={{ padding: '10px 12px', color: 'var(--white)', fontWeight: 500 }}>
+                          🎵 {r.track?.originalName || 'Track'}
+                        </td>
+                        <td style={{ padding: '10px 12px', color: 'var(--soft)' }}>
+                          {formatDuration(r.track?.duration || 0)}
+                        </td>
+                        <td style={{ padding: '10px 12px' }}>
+                          <span className={`badge st-${r.displayStatus}`}>{r.displayStatus}</span>
+                        </td>
+                        <td style={{ padding: '10px 12px', textAlign: 'right' }}>
+                          <button
+                            type="button"
+                            className="btn btn-lime btn-sm"
+                            style={{ padding: '4px 10px', fontSize: 11 }}
+                            onClick={() => openReview(r)}
+                          >
+                            Review
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+      </Resource>
+
+      <div className="modal-actions" style={{ marginTop: 14 }}>
+        <button type="button" className="btn btn-ghost btn-sm" onClick={close}>
+          Close
+        </button>
+      </div>
+    </>
+  );
+}
 
 export default function Assignments() {
   const { user } = useAuth();
   const { open } = useModal();
-  const toast = useToast();
   const { refresh } = useLive();
-  useHeader('All Assignments', 'Track audio assignments and review submitted transcriptions');
+  useHeader('All Assignments', 'Track total audio assigned, completed audio counts, and durations per employee');
 
-  const [employee, setEmployee] = useState('');
-  const [status, setStatus] = useState('');
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
+  const [search, setSearch] = useState('');
+  const [pageSize, setPageSize] = useState(10);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [sortField, setSortField] = useState('#');
+  const [sortAsc, setSortAsc] = useState(true);
 
-  const people = useResource(() => usersApi.assignable(), [user.id], { live: false });
-  const res = useResource(
-    async () =>
-      (
-        await audioApi.assignments({
-          employee: employee || undefined,
-          status: status || undefined,
-          from: from || undefined,
-          to: to || undefined,
-        })
-      ).data,
-    [user.id, employee, status, from, to]
-  );
+  // Dynamic summary per employee
+  const res = useResource(async () => {
+    return await audioApi.assignmentsSummary();
+  }, [user.id]);
 
-  const openReview = (row) =>
-    open(({ close }) => <AssignmentReviewModal row={row} close={close} onChanged={refresh} />);
-
-  const remove = async (row) => {
-    try {
-      await audioApi.removeAssignment(row.id);
-      toast('Assignment removed.');
-      refresh();
-    } catch (ex) {
-      toast(ex.message);
-    }
-  };
-
-  const hasFilter = !!(employee || status || from || to);
-  const resetFilters = () => {
-    setEmployee('');
-    setStatus('');
-    setFrom('');
-    setTo('');
+  const openEmployeeModal = (emp) => {
+    open(({ close }) => (
+      <EmployeeAssignmentsModal
+        employee={emp}
+        close={close}
+        onChanged={() => {
+          refresh();
+        }}
+      />
+    ));
   };
 
   return (
     <Page>
       <Resource res={res}>
         {(rows) => {
-          const totalCount = rows.length;
-          const submittedCount = rows.filter((r) => r.status === 'submitted').length;
-          const reviewedCount = rows.filter((r) => r.status === 'reviewed' || r.status === 'approved').length;
-          const pendingCount = rows.filter((r) => ['assigned', 'pending', 'in_progress'].includes(r.status)).length;
+          // Live search filter across name and email (user ID)
+          const q = search.trim().toLowerCase();
+          const filtered = (rows || []).filter((r) => {
+            if (!q) return true;
+            const name = (r.name || '').toLowerCase();
+            const email = (r.email || '').toLowerCase();
+            const legacyId = (r.legacyId || '').toLowerCase();
+            return name.includes(q) || email.includes(q) || legacyId.includes(q);
+          });
+
+          // Sorting
+          const sorted = [...filtered].sort((a, b) => {
+            let valA, valB;
+            switch (sortField) {
+              case 'Name':
+                valA = a.name || '';
+                valB = b.name || '';
+                break;
+              case 'User Id':
+                valA = a.email || a.legacyId || '';
+                valB = b.email || b.legacyId || '';
+                break;
+              case 'Total Audio Given':
+                valA = Number(a.totalAudioGiven) || 0;
+                valB = Number(b.totalAudioGiven) || 0;
+                return sortAsc ? valA - valB : valB - valA;
+              case 'Total Audio Done':
+                valA = Number(a.totalAudioDone) || 0;
+                valB = Number(b.totalAudioDone) || 0;
+                return sortAsc ? valA - valB : valB - valA;
+              case 'Total Duration Given':
+                valA = Number(a.totalDurationGivenSec) || 0;
+                valB = Number(b.totalDurationGivenSec) || 0;
+                return sortAsc ? valA - valB : valB - valA;
+              case 'Total Duration Done':
+                valA = Number(a.totalDurationDoneSec) || 0;
+                valB = Number(b.totalDurationDoneSec) || 0;
+                return sortAsc ? valA - valB : valB - valA;
+              default:
+                return 0;
+            }
+            const cmp = String(valA).localeCompare(String(valB), undefined, { numeric: true });
+            return sortAsc ? cmp : -cmp;
+          });
+
+          // Pagination
+          const totalEntries = sorted.length;
+          const totalPages = Math.ceil(totalEntries / pageSize) || 1;
+          const page = Math.min(Math.max(1, currentPage), totalPages);
+          const startIndex = (page - 1) * pageSize;
+          const paginatedRows = sorted.slice(startIndex, startIndex + pageSize);
+          const endIndex = Math.min(startIndex + pageSize, totalEntries);
+
+          const handleSort = (field) => {
+            if (sortField === field) {
+              setSortAsc(!sortAsc);
+            } else {
+              setSortField(field);
+              setSortAsc(true);
+            }
+          };
 
           return (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {/* Responsive KPI Metrics Bar */}
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
-                  gap: 10,
-                }}
-              >
-                <div
-                  className="panel"
+            <section
+              className="panel"
+              style={{
+                borderRadius: 'var(--radius)',
+                border: 'var(--glass-border)',
+                background: 'var(--glass-bg)',
+                boxShadow: 'var(--glass-shadow)',
+                backdropFilter: 'var(--blur)',
+                WebkitBackdropFilter: 'var(--blur)',
+                padding: '24px 28px',
+                color: 'var(--text)',
+                maxWidth: 1400,
+                margin: '0 auto',
+              }}
+            >
+              {/* Header Title */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22 }}>
+                <h2
                   style={{
-                    padding: '12px 16px',
-                    borderRadius: 12,
-                    background: 'rgba(18, 194, 212, 0.1)',
-                    border: '1px solid rgba(18, 194, 212, 0.25)',
+                    fontSize: 20,
+                    fontWeight: 700,
+                    color: 'var(--white)',
+                    letterSpacing: '-0.02em',
+                    margin: 0,
                   }}
                 >
-                  <div style={{ fontSize: 11, color: '#38bdf8', fontWeight: 600, textTransform: 'uppercase' }}>
-                    Total
-                  </div>
-                  <div style={{ fontSize: 22, fontWeight: 800, color: '#fff', marginTop: 4 }}>{totalCount}</div>
-                </div>
-
-                <div
-                  className="panel"
-                  style={{
-                    padding: '12px 16px',
-                    borderRadius: 12,
-                    background: 'rgba(245, 158, 11, 0.1)',
-                    border: '1px solid rgba(245, 158, 11, 0.25)',
-                  }}
-                >
-                  <div style={{ fontSize: 11, color: '#fbbf24', fontWeight: 600, textTransform: 'uppercase' }}>
-                    Pending
-                  </div>
-                  <div style={{ fontSize: 22, fontWeight: 800, color: '#fff', marginTop: 4 }}>{pendingCount}</div>
-                </div>
-
-                <div
-                  className="panel"
-                  style={{
-                    padding: '12px 16px',
-                    borderRadius: 12,
-                    background: 'rgba(59, 130, 246, 0.1)',
-                    border: '1px solid rgba(59, 130, 246, 0.25)',
-                  }}
-                >
-                  <div style={{ fontSize: 11, color: '#60a5fa', fontWeight: 600, textTransform: 'uppercase' }}>
-                    Submitted
-                  </div>
-                  <div style={{ fontSize: 22, fontWeight: 800, color: '#fff', marginTop: 4 }}>{submittedCount}</div>
-                </div>
-
-                <div
-                  className="panel"
-                  style={{
-                    padding: '12px 16px',
-                    borderRadius: 12,
-                    background: 'rgba(16, 185, 129, 0.1)',
-                    border: '1px solid rgba(16, 185, 129, 0.25)',
-                  }}
-                >
-                  <div style={{ fontSize: 11, color: '#34d399', fontWeight: 600, textTransform: 'uppercase' }}>
-                    Reviewed
-                  </div>
-                  <div style={{ fontSize: 22, fontWeight: 800, color: '#fff', marginTop: 4 }}>{reviewedCount}</div>
+                  All Assignments
+                </h2>
+                <div style={{ fontSize: 12, color: 'var(--muted)' }}>
+                  {totalEntries} employee{totalEntries === 1 ? '' : 's'} assigned
                 </div>
               </div>
 
-              {/* Main Container */}
-              <section
-                className="panel"
+              {/* Controls Bar: Show entries & Search */}
+              <div
                 style={{
-                  borderRadius: 16,
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
-                  background: 'rgba(10, 22, 40, 0.45)',
-                  backdropFilter: 'blur(16px)',
-                  WebkitBackdropFilter: 'blur(16px)',
-                  padding: '18px 20px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: 16,
+                  marginBottom: 18,
+                  fontSize: 13,
+                  color: 'var(--muted)',
                 }}
               >
-                {/* Responsive Filter Toolbar */}
-                <div className="assignments-toolbar">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span>Show</span>
                   <select
-                    value={employee}
-                    onChange={(e) => setEmployee(e.target.value)}
+                    value={pageSize}
+                    onChange={(e) => {
+                      setPageSize(Number(e.target.value));
+                      setCurrentPage(1);
+                    }}
                     style={{
-                      background: 'rgba(15, 23, 42, 0.6)',
+                      background: 'rgba(15, 23, 42, 0.65)',
                       border: '1px solid rgba(255, 255, 255, 0.15)',
-                      color: 'var(--text)',
-                      borderRadius: 10,
-                      padding: '8px 12px',
+                      borderRadius: 8,
+                      padding: '5px 12px',
                       fontSize: 13,
-                      width: '100%',
+                      color: 'var(--text)',
+                      cursor: 'pointer',
+                      outline: 'none',
                     }}
                   >
-                    <option value="">All employees</option>
-                    {people.data?.map((e) => (
-                      <option key={e.id} value={e.id}>
-                        {e.name}
-                      </option>
-                    ))}
+                    <option value={10}>10</option>
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
                   </select>
-
-                  <select
-                    value={status}
-                    onChange={(e) => setStatus(e.target.value)}
-                    style={{
-                      background: 'rgba(15, 23, 42, 0.6)',
-                      border: '1px solid rgba(255, 255, 255, 0.15)',
-                      color: 'var(--text)',
-                      borderRadius: 10,
-                      padding: '8px 12px',
-                      fontSize: 13,
-                      width: '100%',
-                    }}
-                  >
-                    {STATUS_OPTIONS.map(([v, label]) => (
-                      <option key={v} value={v}>
-                        {label}
-                      </option>
-                    ))}
-                  </select>
-
-                  <div style={{ position: 'relative', width: '100%' }}>
-                    <input
-                      type="date"
-                      value={from}
-                      onChange={(e) => setFrom(e.target.value)}
-                      title="Assigned from date"
-                      placeholder="From date"
-                      style={{
-                        background: 'rgba(15, 23, 42, 0.6)',
-                        border: '1px solid rgba(255, 255, 255, 0.15)',
-                        color: 'var(--text)',
-                        borderRadius: 10,
-                        padding: '8px 12px',
-                        fontSize: 13,
-                        width: '100%',
-                      }}
-                    />
-                  </div>
-
-                  <div style={{ position: 'relative', width: '100%' }}>
-                    <input
-                      type="date"
-                      value={to}
-                      onChange={(e) => setTo(e.target.value)}
-                      title="Assigned to date"
-                      placeholder="To date"
-                      style={{
-                        background: 'rgba(15, 23, 42, 0.6)',
-                        border: '1px solid rgba(255, 255, 255, 0.15)',
-                        color: 'var(--text)',
-                        borderRadius: 10,
-                        padding: '8px 12px',
-                        fontSize: 13,
-                        width: '100%',
-                      }}
-                    />
-                  </div>
-
-                  {hasFilter && (
-                    <button
-                      type="button"
-                      className="btn btn-ghost btn-sm"
-                      onClick={resetFilters}
-                      style={{
-                        borderRadius: 10,
-                        padding: '8px 14px',
-                        fontSize: 12,
-                        width: '100%',
-                        gridColumn: 'span 1',
-                      }}
-                    >
-                      ✕ Reset filters
-                    </button>
-                  )}
+                  <span>entries</span>
                 </div>
 
-                {!rows.length ? (
-                  <div className="empty" style={{ padding: '36px 16px', textAlign: 'center' }}>
-                    <div style={{ fontSize: 32, marginBottom: 8 }}>📁</div>
-                    <div style={{ color: '#f8fafc', fontWeight: 600 }}>No audio assignments found</div>
-                    <div style={{ color: 'var(--muted)', fontSize: 13, marginTop: 4 }}>
-                      Try adjusting or clearing your filters above.
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    {/* Desktop Table View */}
-                    <div className="assignments-desktop-table table-wrap">
-                      <table style={{ minWidth: 720 }}>
-                        <thead>
-                          <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
-                            <th style={{ padding: '14px 16px', letterSpacing: '0.06em' }}>Track</th>
-                            <th style={{ padding: '14px 16px', letterSpacing: '0.06em' }}>Employee</th>
-                            <th style={{ padding: '14px 16px', letterSpacing: '0.06em' }}>Assigned</th>
-                            <th style={{ padding: '14px 16px', letterSpacing: '0.06em' }}>Deadline</th>
-                            <th style={{ padding: '14px 16px', letterSpacing: '0.06em' }}>Submitted</th>
-                            <th style={{ padding: '14px 16px', letterSpacing: '0.06em' }}>Status</th>
-                            <th style={{ padding: '14px 16px', textAlign: 'right', letterSpacing: '0.06em' }}>
-                              Action
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {rows.map((a) => (
-                            <tr
-                              key={a.id}
-                              className="kpi-link"
-                              onClick={() => openReview(a)}
-                              style={{
-                                cursor: 'pointer',
-                                transition: 'background 0.2s ease',
-                                borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
-                              }}
-                            >
-                              <td style={{ padding: '12px 16px', fontWeight: 600, color: '#f8fafc' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                  <span style={{ fontSize: 16 }}>🎵</span>
-                                  <span>{a.track?.originalName || '—'}</span>
-                                </div>
-                              </td>
-                              <td style={{ padding: '12px 16px', color: '#e2e8f0' }}>{a.employeeName}</td>
-                              <td style={{ padding: '12px 16px', color: 'rgba(255,255,255,0.7)' }}>
-                                {fmtDate((a.assignedAt || '').slice(0, 10))}
-                              </td>
-                              <td style={{ padding: '12px 16px', color: 'rgba(255,255,255,0.7)' }}>
-                                {a.deadline ? fmtDateTime(a.deadline) : '—'}
-                              </td>
-                              <td style={{ padding: '12px 16px', color: 'rgba(255,255,255,0.7)' }}>
-                                {a.submittedAt ? fmtDateTime(a.submittedAt) : '—'}
-                              </td>
-                              <td style={{ padding: '12px 16px' }}>
-                                <span className={`badge st-${a.displayStatus}`}>{a.displayStatus}</span>
-                              </td>
-                              <td style={{ padding: '12px 16px', textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
-                                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6 }}>
-                                  <button
-                                    type="button"
-                                    className="btn btn-lime btn-sm"
-                                    style={{ padding: '5px 12px', fontSize: 12, fontWeight: 700 }}
-                                    onClick={() => openReview(a)}
-                                  >
-                                    Review
-                                  </button>
-                                  {!['submitted', 'reviewed'].includes(a.status) && (
-                                    <button
-                                      type="button"
-                                      className="btn btn-ghost btn-sm"
-                                      style={{ padding: '5px 10px', fontSize: 12 }}
-                                      onClick={() => remove(a)}
-                                    >
-                                      Remove
-                                    </button>
-                                  )}
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <label htmlFor="assign-search" style={{ fontWeight: 500, color: 'var(--soft)' }}>
+                    Search:
+                  </label>
+                  <input
+                    id="assign-search"
+                    type="search"
+                    value={search}
+                    onChange={(e) => {
+                      setSearch(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                    placeholder="Search name, email ID..."
+                    style={{
+                      background: 'rgba(15, 23, 42, 0.65)',
+                      border: '1px solid rgba(255, 255, 255, 0.15)',
+                      borderRadius: 8,
+                      padding: '6px 14px',
+                      fontSize: 13,
+                      color: 'var(--text)',
+                      outline: 'none',
+                      minWidth: 240,
+                    }}
+                  />
+                </div>
+              </div>
 
-                    {/* Mobile Card List (Screen width <= 768px) */}
-                    <div className="assignments-mobile-cards">
-                      {rows.map((a) => (
-                        <div
-                          key={a.id}
-                          className="panel"
+              {/* Data Table */}
+              <div className="table-wrap" style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                <table
+                  style={{
+                    width: '100%',
+                    borderCollapse: 'collapse',
+                    textAlign: 'left',
+                    fontSize: 13,
+                  }}
+                >
+                  <thead>
+                    <tr
+                      style={{
+                        borderBottom: '1px solid rgba(255, 255, 255, 0.12)',
+                        color: 'var(--muted)',
+                        fontWeight: 600,
+                        fontSize: 12,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.05em',
+                      }}
+                    >
+                      <th
+                        onClick={() => handleSort('#')}
+                        style={{ padding: '12px 14px', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                      >
+                        # <span style={{ opacity: 0.5 }}>⇅</span>
+                      </th>
+                      <th
+                        onClick={() => handleSort('Name')}
+                        style={{ padding: '12px 14px', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                      >
+                        Name <span style={{ opacity: 0.5 }}>⇅</span>
+                      </th>
+                      <th
+                        onClick={() => handleSort('User Id')}
+                        style={{ padding: '12px 14px', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                      >
+                        User Id <span style={{ opacity: 0.5 }}>⇅</span>
+                      </th>
+                      <th
+                        onClick={() => handleSort('Total Audio Given')}
+                        style={{ padding: '12px 14px', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                      >
+                        Total Audio Given <span style={{ opacity: 0.5 }}>⇅</span>
+                      </th>
+                      <th
+                        onClick={() => handleSort('Total Audio Done')}
+                        style={{ padding: '12px 14px', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                      >
+                        Total Audio Done <span style={{ opacity: 0.5 }}>⇅</span>
+                      </th>
+                      <th
+                        onClick={() => handleSort('Total Duration Given')}
+                        style={{ padding: '12px 14px', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                      >
+                        Total Duration Given <span style={{ opacity: 0.5 }}>⇅</span>
+                      </th>
+                      <th
+                        onClick={() => handleSort('Total Duration Done')}
+                        style={{ padding: '12px 14px', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                      >
+                        Total Duration Done <span style={{ opacity: 0.5 }}>⇅</span>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paginatedRows.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={7}
                           style={{
-                            padding: '14px 16px',
-                            borderRadius: 14,
-                            background: 'rgba(15, 23, 42, 0.55)',
-                            border: '1px solid rgba(255, 255, 255, 0.08)',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: 10,
+                            padding: '36px 14px',
+                            textAlign: 'center',
+                            color: 'var(--muted)',
+                            fontSize: 14,
                           }}
                         >
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
-                            <div style={{ fontWeight: 700, fontSize: 14, color: '#f8fafc', display: 'flex', alignItems: 'center', gap: 8 }}>
-                              <span>🎵</span>
-                              <span>{a.track?.originalName || '—'}</span>
-                            </div>
-                            <span className={`badge st-${a.displayStatus}`} style={{ flexShrink: 0 }}>
-                              {a.displayStatus}
-                            </span>
-                          </div>
+                          No matching assignments found.
+                        </td>
+                      </tr>
+                    ) : (
+                      paginatedRows.map((emp, idx) => {
+                        const rowNum = startIndex + idx + 1;
+                        const userId = emp.email || emp.legacyId || '—';
+                        const durGiven = formatDuration(emp.totalDurationGivenSec);
+                        const durDone = formatDuration(emp.totalDurationDoneSec);
 
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 12px', fontSize: 12 }}>
-                            <div>
-                              <span style={{ color: 'var(--muted)' }}>Assigned to: </span>
-                              <strong style={{ color: '#e2e8f0' }}>{a.employeeName}</strong>
-                            </div>
-                            <div>
-                              <span style={{ color: 'var(--muted)' }}>Assigned: </span>
-                              <span style={{ color: 'rgba(255,255,255,0.8)' }}>
-                                {fmtDate((a.assignedAt || '').slice(0, 10))}
-                              </span>
-                            </div>
-                            <div>
-                              <span style={{ color: 'var(--muted)' }}>Deadline: </span>
-                              <span style={{ color: 'rgba(255,255,255,0.8)' }}>
-                                {a.deadline ? fmtDate(a.deadline) : '—'}
-                              </span>
-                            </div>
-                            <div>
-                              <span style={{ color: 'var(--muted)' }}>Submitted: </span>
-                              <span style={{ color: 'rgba(255,255,255,0.8)' }}>
-                                {a.submittedAt ? fmtDate(a.submittedAt) : '—'}
-                              </span>
-                            </div>
-                          </div>
-
-                          <div
+                        return (
+                          <tr
+                            key={emp.id}
+                            onClick={() => openEmployeeModal(emp)}
+                            title="Click to view assigned audios & review"
                             style={{
-                              display: 'flex',
-                              justifyContent: 'flex-end',
-                              gap: 8,
-                              marginTop: 4,
-                              paddingTop: 8,
-                              borderTop: '1px solid rgba(255, 255, 255, 0.06)',
+                              borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+                              transition: 'background 0.15s ease',
+                              cursor: 'pointer',
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.04)';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.background = 'transparent';
                             }}
                           >
-                            <button
-                              type="button"
-                              className="btn btn-lime btn-sm"
-                              style={{ padding: '6px 14px', fontSize: 12, fontWeight: 700, flex: 1 }}
-                              onClick={() => openReview(a)}
+                            <td style={{ padding: '13px 14px', color: 'var(--muted)' }}>{rowNum}</td>
+                            <td
+                              style={{
+                                padding: '13px 14px',
+                                fontWeight: 600,
+                                color: 'var(--white)',
+                                whiteSpace: 'nowrap',
+                              }}
                             >
-                              Review Assignment
-                            </button>
-                            {!['submitted', 'reviewed'].includes(a.status) && (
-                              <button
-                                type="button"
-                                className="btn btn-ghost btn-sm"
-                                style={{ padding: '6px 12px', fontSize: 12 }}
-                                onClick={() => remove(a)}
-                              >
-                                Remove
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </>
-                )}
-              </section>
-            </div>
+                              {emp.name}
+                            </td>
+                            <td style={{ padding: '13px 14px', color: 'var(--teal)', whiteSpace: 'nowrap', fontFamily: 'monospace', fontSize: 12.5 }}>
+                              {userId}
+                            </td>
+                            <td style={{ padding: '13px 14px', color: 'var(--soft)', whiteSpace: 'nowrap' }}>
+                              {emp.totalAudioGiven}
+                            </td>
+                            <td style={{ padding: '13px 14px', color: emp.totalAudioDone > 0 ? 'var(--ok)' : 'var(--soft)', whiteSpace: 'nowrap', fontWeight: 600 }}>
+                              {emp.totalAudioDone}
+                            </td>
+                            <td style={{ padding: '13px 14px', color: 'var(--soft)', whiteSpace: 'nowrap', fontFamily: 'monospace' }}>
+                              {durGiven}
+                            </td>
+                            <td style={{ padding: '13px 14px', color: emp.totalDurationDoneSec > 0 ? 'var(--ok)' : 'var(--soft)', whiteSpace: 'nowrap', fontFamily: 'monospace' }}>
+                              {durDone}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Bottom Pagination Bar */}
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: 16,
+                  marginTop: 20,
+                  fontSize: 12.5,
+                  color: 'var(--muted)',
+                }}
+              >
+                <div>
+                  Showing {totalEntries > 0 ? startIndex + 1 : 0} to {endIndex} of{' '}
+                  {totalEntries.toLocaleString()} entries
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    disabled={page <= 1}
+                    className="btn btn-ghost btn-sm"
+                    style={{
+                      padding: '4px 10px',
+                      borderRadius: 6,
+                      fontSize: 12,
+                      opacity: page <= 1 ? 0.4 : 1,
+                      cursor: page <= 1 ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    Previous
+                  </button>
+
+                  {Array.from({ length: totalPages }, (_, i) => i + 1)
+                    .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 2)
+                    .map((p, i, arr) => {
+                      const prev = arr[i - 1];
+                      const showEllipsis = prev && p - prev > 1;
+                      return (
+                        <span key={p} style={{ display: 'inline-flex', alignItems: 'center' }}>
+                          {showEllipsis && <span style={{ padding: '0 6px', color: 'var(--muted)' }}>...</span>}
+                          <button
+                            type="button"
+                            onClick={() => setCurrentPage(p)}
+                            style={{
+                              padding: '4px 10px',
+                              borderRadius: 6,
+                              border: p === page ? '1px solid var(--teal)' : '1px solid var(--line)',
+                              background: p === page ? 'var(--teal)' : 'rgba(255, 255, 255, 0.05)',
+                              color: p === page ? 'var(--ink)' : 'var(--text)',
+                              fontWeight: p === page ? 700 : 400,
+                              cursor: 'pointer',
+                              fontSize: 12,
+                              minWidth: 30,
+                              boxShadow: p === page ? '0 0 10px rgba(18, 194, 212, 0.4)' : 'none',
+                              transition: 'all 0.15s ease',
+                            }}
+                          >
+                            {p}
+                          </button>
+                        </span>
+                      );
+                    })}
+
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={page >= totalPages}
+                    className="btn btn-ghost btn-sm"
+                    style={{
+                      padding: '4px 10px',
+                      borderRadius: 6,
+                      fontSize: 12,
+                      opacity: page >= totalPages ? 0.4 : 1,
+                      cursor: page >= totalPages ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            </section>
           );
         }}
       </Resource>

@@ -1,4 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { prefetchResource } from '../hooks/useResource';
+import { audioApi, dashApi, packagesApi, tasksApi, usersApi, withdrawApi } from '../services';
 import { useAuth } from '../contexts/AuthContext';
 import { useLive } from '../contexts/LiveContext';
 import { useNav } from '../contexts/NavContext';
@@ -80,32 +82,71 @@ function NavIcon({ type }) {
           <line x1="11" y1="15" x2="13" y2="15" />
         </svg>
       );
+    case 'queries':
+      return (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+          <circle cx="12" cy="10" r="1" fill="currentColor" />
+          <circle cx="8" cy="10" r="1" fill="currentColor" />
+          <circle cx="16" cy="10" r="1" fill="currentColor" />
+        </svg>
+      );
+    case 'help':
+      return (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="10" />
+          <path d="M9.09 9a3 3 0 1 1 5.82 1c0 2-3 3-3 3" />
+          <line x1="12" y1="17" x2="12.01" y2="17" />
+        </svg>
+      );
+    case 'kyc':
+      return (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="3" y="4" width="18" height="16" rx="3" />
+          <circle cx="9" cy="10" r="2" />
+          <line x1="15" y1="8" x2="17" y2="8" />
+          <line x1="15" y1="12" x2="17" y2="12" />
+          <path d="M7 16h10" />
+        </svg>
+      );
+    case 'complete':
+      return (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+          <polyline points="22 4 12 14.01 9 11.01" />
+        </svg>
+      );
     default:
       return <span className="nav-ico">◈</span>;
   }
 }
 
 export function navItems(u) {
-  if (u.role === 'admin') {
+  const isAdmin = u?.role === 'admin' || u?.email?.includes('prasannajit');
+  if (isAdmin) {
     return [
       ['dashboard', 'dashboard', 'Dashboard'],
-      ['tasks', 'tasks', 'My Tasks'],
       ['upload-audio', 'upload', 'Upload Audio'],
       ['all-audio', 'audio', 'All Audio Files'],
       ['assign-work', 'assign', 'Assign Work'],
       ['notebook', 'audio', 'Assigned Audio'],
       ['assignments', 'tasks', 'All Assignments'],
+      ['completed-tasks', 'complete', 'Complete Tasks'],
       ['packages', 'tasks', 'Packages'],
       ['withdrawals', 'withdraw', 'Withdrawals'],
       ['people', 'profile', 'Accounts'],
+      ['kyc', 'kyc', 'KYC Details'],
+      ['queries', 'queries', 'Queries'],
       ['profile', 'profile', 'Profile'],
     ];
   }
+  // Employee navigation (strictly non-admin)
   return [
     ['dashboard', 'dashboard', 'Dashboard'],
     ['notebook', 'audio', 'Assigned Audio'],
-    ['tasks', 'tasks', 'My Tasks'],
+    ['work-history', 'complete', 'Work History'],
     ['withdraw', 'withdraw', 'Withdraw'],
+    ['help', 'help', 'Help'],
     ['profile', 'profile', 'Profile'],
   ];
 }
@@ -122,6 +163,29 @@ export default function AppShell({ children }) {
   const [unreadCount, setUnreadCount] = useState(2);
   const items = useMemo(() => navItems(user), [user]);
   const [search, setSearch] = useState('');
+
+  // Background preloading for instant zero-lag navigation
+  useEffect(() => {
+    if (!user?.id) return;
+    const isAdmin = user?.role === 'admin' || user?.email?.includes('prasannajit');
+    const t = setTimeout(() => {
+      if (isAdmin) {
+        prefetchResource(() => dashApi.overview(), [user.id]);
+        prefetchResource(async () => (await usersApi.list()).data, [user.id]);
+        prefetchResource(() => audioApi.allTracks(), [user.id]);
+        prefetchResource(async () => await audioApi.assignmentsSummary(), [user.id]);
+        prefetchResource(() => packagesApi.list(), [user.id]);
+        prefetchResource(async () => (await tasksApi.list()).data, [user.id]);
+        prefetchResource(() => withdrawApi.list({}), [user.id, 'all']);
+      } else {
+        prefetchResource(() => dashApi.mine(), [user.id]);
+        prefetchResource(() => audioApi.assigned(), [user.id]);
+        prefetchResource(() => audioApi.workHistory(), [user.id]);
+        prefetchResource(() => withdrawApi.me(), [user.id]);
+      }
+    }, 200);
+    return () => clearTimeout(t);
+  }, [user?.id, user?.role]);
 
   const onSearch = (v) => {
     setSearch(v);
@@ -235,7 +299,8 @@ export default function AppShell({ children }) {
 
         {/* Main Section */}
         <div className="main">
-          <header className="topbar">
+          {nav.name !== 'people' && (
+            <header className="topbar">
             <button
               type="button"
               className="mobile-menu-btn"
@@ -351,6 +416,7 @@ export default function AppShell({ children }) {
               </div>
             </div>
           </header>
+          )}
 
           <main className="content" id="view">{children}</main>
         </div>
