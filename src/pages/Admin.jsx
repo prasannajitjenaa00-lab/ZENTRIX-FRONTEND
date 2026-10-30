@@ -13,35 +13,12 @@ import PersonModal from '../modals/PersonModal';
 import { PackageModal } from '../modals/SimpleModals';
 import { fmtDate, fmtDateTime, initials, money, roleLabel } from '../utils/format';
 
-export function PackagesView() {
-  const { user } = useAuth(); const nav = useNav(); const { open } = useModal(); const toast = useToast(); const { refresh } = useLive();
-  useHeader('Packages', 'Create packages that appear as wallets for employees');
-  useEffect(() => { if (user.role !== 'admin') nav.go('dashboard'); }, [user, nav]);
-  const res = useResource(() => packagesApi.list(), [user.id]);
-  const del = async (p) => { if (!window.confirm('Delete this package?')) return; try { await packagesApi.remove(p.id); refresh(); toast('Package deleted.'); } catch (ex) { toast(ex.message); } };
-  return (
-    <Resource res={res}>{(pkgs) => (
-      <Page>
-        <div className="toolbar"><button className="btn btn-lime btn-sm" id="new-package" onClick={() => open(({ close }) => <PackageModal close={close} />)}>Create package</button></div>
-        {pkgs.length ? pkgs.map((p) => (
-          <section className="panel" style={{ marginBottom: 10 }} key={p.id}>
-            <div className="list-item" style={{ border: 0, padding: 0 }}>
-              <div><strong>{p.name}</strong><div style={{ color: 'var(--muted)', fontSize: 12, marginTop: 2 }}><span style={{ color: '#10b981', fontWeight: 600 }}>{p.currency}{p.ratePerHour || p.amount}/hr</span>{p.note ? ` · ${p.note}` : ''}</div></div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button className="btn btn-ghost btn-sm" onClick={() => open(({ close }) => <PackageModal pkg={p} close={close} />)}>Edit</button>
-                <button className="btn btn-danger btn-sm" onClick={() => del(p)}>Delete</button>
-              </div>
-            </div>
-          </section>)) : <div className="empty">No packages yet. Create one.</div>}
-      </Page>)}
-    </Resource>
-  );
-}
+export { PackagesView } from './Packages';
 
 export function PeopleView() {
   const { user } = useAuth(); const nav = useNav(); const { open } = useModal(); const toast = useToast(); const { refresh } = useLive();
   useHeader('Accounts studio', 'Manage Admin and Employee accounts and credentials.');
-  useEffect(() => { if (user.role !== 'admin') nav.go('dashboard'); }, [user, nav]);
+  // accessible
   const users = useResource(async () => (await usersApi.list()).data, [user.id]);
   const pkgs = useResource(() => packagesApi.list(), [user.id]);
   const tasks = useResource(async () => (await tasksApi.list()).data, [user.id]);
@@ -68,7 +45,7 @@ export function PeopleView() {
                       <strong>{p.name}</strong><div style={{ color: 'var(--muted)', fontSize: 12 }}>{roleLabel(p.role)} · {p.email}</div>
                       <div style={{ color: 'var(--soft)', fontSize: 12, marginTop: 4 }}>{orgLine(p)} · joined {fmtDate(p.joined)}</div>
                       <div style={{ color: 'var(--muted)', fontSize: 12, marginTop: 4 }}>{b?.account ? `Bank: ${b.name || '—'} · ${b.holder || ''} · A/c ${b.account} · IFSC ${b.ifsc || ''}${p.bank?.locked ? ' · locked' : ''}` : 'No bank details on file'}</div>
-                      <PasswordDisplay password={p.currentPassword} userEmail={p.email} />
+                      <PasswordDisplay userId={p.id} userEmail={p.email} />
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -120,48 +97,69 @@ export function ChatView() {
   );
 }
 
-function PasswordDisplay({ password, userEmail }) {
-  const [show, setShow] = useState(false);
+/** Admin-only reveal: the current plaintext password is never bulk-loaded with the account list — it's fetched
+ *  (and audit-logged server-side) only when admin explicitly clicks Show, and dropped from state on Hide. */
+function PasswordDisplay({ userId, userEmail }) {
+  const [password, setPassword] = useState(null);
+  const [loading, setLoading] = useState(false);
   const toast = useToast();
-  if (!password) {
-    return (
-      <div style={{ marginTop: 4, fontSize: 11, color: 'var(--muted)' }}>
-        Password: <span style={{ opacity: 0.7 }}>[Encrypted / not recorded — reset to reveal]</span>
-      </div>
-    );
-  }
+  const { version } = useLive();
+  const prevVersion = useRef(version);
+
+  // When a live update arrives (e.g. employee changed password), auto-refresh if revealed
+  useEffect(() => {
+    if (prevVersion.current === version) return;
+    prevVersion.current = version;
+    if (password == null) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { password: pw } = await usersApi.password(userId);
+        if (!cancelled) setPassword(pw || '');
+      } catch { if (!cancelled) setPassword(null); }
+    })();
+    return () => { cancelled = true; };
+  }, [version, userId, password]);
+
+  const reveal = async () => {
+    if (password) { setPassword(null); return; }
+    setLoading(true);
+    try {
+      const { password: pw } = await usersApi.password(userId);
+      setPassword(pw || '');
+    } catch (ex) { toast(ex.message); } finally { setLoading(false); }
+  };
   const copy = async (e) => {
     e.stopPropagation();
-    try {
-      await navigator.clipboard.writeText(password);
-      toast(`Password copied for ${userEmail || 'user'}`);
-    } catch {
-      toast('Could not copy to clipboard.');
-    }
+    try { await navigator.clipboard.writeText(password); toast(`Password copied for ${userEmail || 'user'}`); }
+    catch { toast('Could not copy to clipboard.'); }
   };
   return (
     <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginTop: 6, background: 'rgba(255, 255, 255, 0.04)', padding: '3px 8px', borderRadius: 6, border: '1px solid rgba(255, 255, 255, 0.08)' }}>
       <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600 }}>Password:</span>
-      <code style={{ fontSize: 12, fontFamily: 'monospace', letterSpacing: show ? '0' : '2px', color: show ? '#12c2d4' : 'var(--text)' }}>
-        {show ? password : '••••••••'}
+      <code style={{ fontSize: 12, fontFamily: 'monospace', letterSpacing: password ? '0' : '2px', color: password ? '#12c2d4' : 'var(--text)' }}>
+        {password != null ? (password || '[none set]') : '••••••••'}
       </code>
       <button
         type="button"
         className="btn btn-ghost btn-sm"
         style={{ padding: '2px 6px', fontSize: 11, height: 'auto', minHeight: 0 }}
-        onClick={(e) => { e.stopPropagation(); setShow((s) => !s); }}
+        onClick={(e) => { e.stopPropagation(); reveal(); }}
+        disabled={loading}
       >
-        {show ? 'Hide' : 'Show'}
+        {loading ? '…' : password != null ? 'Hide' : 'Show'}
       </button>
-      <button
-        type="button"
-        className="btn btn-ghost btn-sm"
-        style={{ padding: '2px 6px', fontSize: 11, height: 'auto', minHeight: 0 }}
-        onClick={copy}
-        title="Copy real password"
-      >
-        Copy
-      </button>
+      {password ? (
+        <button
+          type="button"
+          className="btn btn-ghost btn-sm"
+          style={{ padding: '2px 6px', fontSize: 11, height: 'auto', minHeight: 0 }}
+          onClick={copy}
+          title="Copy real password"
+        >
+          Copy
+        </button>
+      ) : null}
     </div>
   );
 }

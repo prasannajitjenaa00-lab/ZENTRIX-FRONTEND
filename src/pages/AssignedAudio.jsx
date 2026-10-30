@@ -7,6 +7,7 @@ import { useNav } from '../contexts/NavContext';
 import { useToast } from '../contexts/ToastContext';
 import { useHeader } from '../layouts/HeaderContext';
 import { useResource } from '../hooks/useResource';
+import { validateTranscriptRules } from '../utils/transcriptRules';
 
 // Waveform bar heights with dynamic cyan to purple styling
 const WAVE_BARS = [
@@ -23,58 +24,7 @@ function formatSecs(sec) {
   return `${m}:${s < 10 ? '0' : ''}${s}`;
 }
 
-const NUM_MAP = {
-  '0': 'Zero', '1': 'One', '2': 'Two', '3': 'Three', '4': 'Four',
-  '5': 'Five', '6': 'Six', '7': 'Seven', '8': 'Eight', '9': 'Nine',
-  '10': 'Ten', '11': 'Eleven', '12': 'Twelve', '13': 'Thirteen',
-  '14': 'Fourteen', '15': 'Fifteen', '16': 'Sixteen', '17': 'Seventeen',
-  '18': 'Eighteen', '19': 'Nineteen', '20': 'Twenty',
-  '30': 'Thirty', '40': 'Forty', '50': 'Fifty', '60': 'Sixty',
-  '70': 'Seventy', '80': 'Eighty', '90': 'Ninety', '100': 'Hundred'
-};
-
-function numberToWords(numStr) {
-  const n = parseInt(numStr, 10);
-  if (isNaN(n)) return numStr;
-  if (NUM_MAP[String(n)]) return NUM_MAP[String(n)];
-  if (n < 100) {
-    const tens = Math.floor(n / 10) * 10;
-    const ones = n % 10;
-    return `${NUM_MAP[String(tens)] || ''} ${NUM_MAP[String(ones)] || ''}`.trim();
-  }
-  return numStr.split('').map((d) => NUM_MAP[d] || d).join(' ');
-}
-
-export function isCapitalLetterCriteriaFulfilled(text) {
-  if (!text || !text.trim()) return false;
-  const words = text.trim().split(/\s+/).filter(Boolean);
-  if (!words.length) return false;
-  for (const w of words) {
-    const match = w.match(/[a-zA-Z]/);
-    if (match && match[0] !== match[0].toUpperCase()) {
-      return false;
-    }
-  }
-  return true;
-}
-
-export function formatToTranscriptRules(str) {
-  if (!str) return '';
-  let res = str;
-  // Rule 6: @ = At The Rate, # = Hassh
-  res = res.replace(/@/g, ' At The Rate ');
-  res = res.replace(/#/g, ' Hassh ');
-  // Rule 3: , = Comma
-  res = res.replace(/,/g, ' Comma ');
-  // Rule 3: Numbers to words (e.g. 1 = One)
-  res = res.replace(/\b\d+\b/g, (match) => numberToWords(match));
-  res = res.replace(/\d/g, (d) => NUM_MAP[d] || d);
-  // Rule 2: Single space between words
-  res = res.replace(/[ \t]+/g, ' ');
-  // Rule 1: Every Word's First Letter Must Be In Capital Letter
-  res = res.replace(/(^|[\s\n\r])([a-z])/g, (_, space, char) => space + char.toUpperCase());
-  return res.trim();
-}
+export { validateTranscriptRules };
 
 export default function AssignedAudio() {
   const { user } = useAuth();
@@ -82,10 +32,10 @@ export default function AssignedAudio() {
   const toast = useToast();
   const { refresh } = useLive();
 
-  useHeader('Assigned Audio', 'Listen to your assigned audio files, transcribe and submit for review');
+  useHeader('Audio Task', 'Listen to your assigned audio file, transcribe and submit for review');
 
   // Backend real assignments only
-  const res = useResource(() => audioApi.assigned(), [user.id]);
+  const res = useResource(() => audioApi.assigned(), [user.id], { live: false });
   const realList = res.data || [];
 
   // Map real backend assignments
@@ -187,7 +137,10 @@ export default function AssignedAudio() {
       const found = allTracks.find((t) => t.id === selectedId);
       if (found) return found;
     }
-    return allTracks[0];
+    // For 1-by-1 sequential queue: prioritize active uncompleted audio
+    const active = allTracks.find((t) => ['assigned', 'in_progress', 'revision', 'revision_requested'].includes(t.status));
+    if (active) return active;
+    return allTracks[allTracks.length - 1] || allTracks[0];
   }, [allTracks, selectedId]);
 
   useEffect(() => {
@@ -218,6 +171,9 @@ export default function AssignedAudio() {
 
   const textValue = selectedTrack ? (drafts[selectedTrack.id] ?? selectedTrack.notes ?? '') : '';
 
+  // Real-time 6-rule validation check
+  const ruleCheck = useMemo(() => validateTranscriptRules(textValue), [textValue]);
+
   // Handle typing in transcription editor
   const handleTextChange = (e) => {
     const raw = e.target.value;
@@ -240,6 +196,7 @@ export default function AssignedAudio() {
   const [speedMenuOpen, setSpeedMenuOpen] = useState(false);
   const [volume, setVolume] = useState(0.85);
   const lastSyncRef = useRef(0);
+  const currentTrackIdRef = useRef(null);
 
   const syncListenedTime = (forcedSeconds) => {
     if (!selectedTrack?.realTrack?.id) return;
@@ -251,8 +208,15 @@ export default function AssignedAudio() {
     audioApi.saveNote(trackId, textValue, maxVal).catch(() => {});
   };
 
-  // Sync selected track duration & reset playback
+  // Sync selected track duration & reset playback ONLY when switching to a different track
   useEffect(() => {
+    const nextTrackId = selectedTrack?.id || null;
+    if (currentTrackIdRef.current === nextTrackId) {
+      if (selectedTrack?.duration && !duration) setDuration(selectedTrack.duration);
+      return;
+    }
+    currentTrackIdRef.current = nextTrackId;
+
     setIsPlaying(false);
     setCurrentTime(0);
     if (audioRef.current) {
@@ -264,7 +228,23 @@ export default function AssignedAudio() {
     } else {
       setDuration(0);
     }
-  }, [selectedTrack]);
+  }, [selectedTrack?.id]);
+
+  // Auto-pause playback when tab becomes inactive or window is minimized
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden && audioRef.current && !audioRef.current.paused) {
+        audioRef.current.pause();
+        setIsPlaying(false);
+        syncListenedTime();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
 
   const togglePlay = () => {
     if (!selectedTrack?.realTrack) {
@@ -339,9 +319,10 @@ export default function AssignedAudio() {
     if (!selectedTrack) return;
     if (!textValue.trim()) return toast('Enter your transcription before submitting.');
 
-    const isCapitalFulfilled = isCapitalLetterCriteriaFulfilled(textValue);
-    const targetStatus = isCapitalFulfilled ? 'Approved' : 'Pending';
-    const targetProgress = isCapitalFulfilled ? 100 : 50;
+    const validation = validateTranscriptRules(textValue);
+    const isApproved = validation.passed;
+    const targetStatus = isApproved ? 'Approved' : 'Pending';
+    const targetProgress = isApproved ? 100 : 50;
 
     setSubmitting(true);
     try {
@@ -364,15 +345,17 @@ export default function AssignedAudio() {
       }
 
       // Update local selectedTrack state immediately
-      selectedTrack.status = isCapitalFulfilled ? 'approved' : 'pending';
-      selectedTrack.statusLabel = isCapitalFulfilled ? 'Approved' : 'Pending';
-      selectedTrack.statusColor = isCapitalFulfilled ? 'green' : 'amber';
+      selectedTrack.status = isApproved ? 'approved' : 'pending';
+      selectedTrack.statusLabel = isApproved ? 'Approved' : 'Pending';
+      selectedTrack.statusColor = isApproved ? 'green' : 'amber';
 
+      // Advance 1-by-1 queue: clear selectedId so next pending audio is auto-selected
+      setSelectedId(null);
       refresh();
-      if (isCapitalFulfilled) {
-        toast("Transcription submitted: Word's First Letter is Capitalized — Automatically Approved in My Tasks! 🎉");
+      if (isApproved) {
+        toast("Transcription passed all rules and was auto-approved! 🎉");
       } else {
-        toast("Transcription submitted: Word's First Letter criteria not fulfilled — Automatically marked as Pending in My Tasks.");
+        toast(`Submitted (Pending): ${validation.failures[0] || 'Rules need manual correction.'}`);
       }
     } catch (e) {
       toast(e.message || 'Submission error.');
@@ -382,8 +365,8 @@ export default function AssignedAudio() {
   };
 
   return (
-    <div className="pulse-split-workspace">
-      {/* Real audio element if valid stream exists */}
+    <div className="audio-task-page-wrap">
+      {/* Real audio element for stream playback */}
       <audio
         ref={audioRef}
         preload="metadata"
@@ -426,451 +409,197 @@ export default function AssignedAudio() {
         }}
       />
 
-      {/* Mobile Tab Toggle Bar (visible only on mobile/tablets) */}
-      <div className="mobile-audio-tabs">
-        <button
-          type="button"
-          className={`mobile-tab-btn ${mobileTab === 'list' ? 'active' : ''}`}
-          onClick={() => setMobileTab('list')}
-        >
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" />
-            <line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" />
-          </svg>
-          <span>Audio Files ({counts.all})</span>
-        </button>
-        <button
-          type="button"
-          className={`mobile-tab-btn ${mobileTab === 'editor' ? 'active' : ''}`}
-          onClick={() => setMobileTab('editor')}
-          disabled={!selectedTrack}
-        >
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-            <polyline points="14 2 14 8 20 8" />
-          </svg>
-          <span>Transcription {selectedTrack ? `(${selectedTrack.originalName.slice(0, 10)}...)` : ''}</span>
-        </button>
-      </div>
+      <div className="audio-task-card">
+        {/* Top left title */}
+        <h2 className="audio-task-heading">Audio Task</h2>
 
-      {/* 2-Column Split Master Detail View */}
-      <div className={`split-grid mobile-view-${mobileTab}`}>
-        {/* ================= LEFT MASTER LIST ================= */}
-        <section className="track-list-panel">
-          {/* Filter Pills */}
-          <div className="filter-pill-bar">
-            <button
-              type="button"
-              className={`filter-pill ${filter === 'all' ? 'active' : ''}`}
-              onClick={() => setFilter('all')}
-            >
-              All ({counts.all})
-            </button>
-            <button
-              type="button"
-              className={`filter-pill ${filter === 'pending' ? 'active' : ''}`}
-              onClick={() => setFilter('pending')}
-            >
-              Pending ({counts.pending})
-            </button>
-            <button
-              type="button"
-              className={`filter-pill ${filter === 'in_progress' ? 'active' : ''}`}
-              onClick={() => setFilter('in_progress')}
-            >
-              In Progress ({counts.in_progress})
-            </button>
-            <button
-              type="button"
-              className={`filter-pill ${filter === 'submitted' ? 'active' : ''}`}
-              onClick={() => setFilter('submitted')}
-            >
-              Submitted ({counts.submitted})
-            </button>
-            <button
-              type="button"
-              className={`filter-pill ${filter === 'revision' ? 'active' : ''}`}
-              onClick={() => setFilter('revision')}
-            >
-              Revision ({counts.revision})
-            </button>
-          </div>
-
-          {/* Cards List or Empty State */}
-          <div className="track-cards-scroll">
-            {allTracks.length === 0 ? (
-              <div className="empty" style={{ padding: '60px 20px', textAlign: 'center' }}>
-                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="1.5" style={{ margin: '0 auto 12px', display: 'block' }}>
-                  <path d="M9 18V5l12-2v13" />
-                  <circle cx="6" cy="18" r="3" />
-                  <circle cx="18" cy="16" r="3" />
-                </svg>
-                <h4 style={{ margin: '0 0 6px', color: 'var(--text)' }}>No audio assigned yet</h4>
-                <p style={{ margin: 0, color: 'var(--muted)', fontSize: 13 }}>Your assigned audio files will appear here.</p>
-              </div>
-            ) : paginatedTracks.length === 0 ? (
-              <div className="empty" style={{ padding: '40px 20px', textAlign: 'center' }}>
-                <p style={{ margin: 0, color: 'var(--muted)', fontSize: 13 }}>No audio files found for filter: {filter.replace('_', ' ')}.</p>
-              </div>
-            ) : (
-              paginatedTracks.map((item) => {
-                const isSelected = selectedTrack && item.id === selectedTrack.id;
-                return (
-                  <div
-                    key={item.id}
-                    className={`track-item-card ${isSelected ? 'selected' : ''}`}
-                    onClick={() => {
-                      setSelectedId(item.id);
-                      setMobileTab('editor');
-                    }}
-                  >
-                    {/* Left Music Icon */}
-                    <div className={`track-icon-box icon-${item.iconColor || 'blue'}`}>
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M9 18V5l12-2v13" />
-                        <circle cx="6" cy="18" r="3" />
-                        <circle cx="18" cy="16" r="3" />
-                      </svg>
-                    </div>
-
-                    {/* Center Details */}
-                    <div className="track-item-info">
-                      <h4 className="track-item-title">{item.originalName}</h4>
-                      <div className="track-item-meta">
-                        <span className="pkg-tag">{item.packageName}</span>
-                        {item.duration > 0 && (
-                          <span className="meta-sep">
-                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                              <circle cx="12" cy="12" r="10" />
-                              <polyline points="12 6 12 12 16 14" />
-                            </svg>
-                            {formatSecs(item.duration)}
-                          </span>
-                        )}
-                        {item.assignedAt && (
-                          <span className="meta-sep">
-                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                              <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                              <line x1="16" y1="2" x2="16" y2="6" />
-                              <line x1="8" y1="2" x2="8" y2="6" />
-                              <line x1="3" y1="10" x2="21" y2="10" />
-                            </svg>
-                            {item.assignedAt}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Right Status Badge & Play button */}
-                    <div className="track-item-actions">
-                      <span className={`status-pill status-${item.statusColor}`}>
-                        {item.statusLabel}
-                      </span>
-                      <button
-                        type="button"
-                        className="track-play-circle"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedId(item.id);
-                          setMobileTab('editor');
-                          togglePlay();
-                        }}
-                        title={isPlaying && isSelected ? 'Pause' : 'Play'}
-                      >
-                        {isPlaying && isSelected ? (
-                          <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor">
-                            <rect x="6" y="4" width="4" height="16" rx="1" />
-                            <rect x="14" y="4" width="4" height="16" rx="1" />
-                          </svg>
-                        ) : (
-                          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
-                            <polygon points="6 4 19 12 6 20 6 4" />
-                          </svg>
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="track-pagination">
-              <button
-                type="button"
-                className="page-arrow"
-                disabled={page === 1}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-              >
-                &lt;
-              </button>
-              {Array.from({ length: totalPages }, (_, idx) => idx + 1).map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  className={`page-num ${page === p ? 'active' : ''}`}
-                  onClick={() => setPage(p)}
-                >
-                  {p}
-                </button>
-              ))}
-              <button
-                type="button"
-                className="page-arrow"
-                disabled={page >= totalPages}
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              >
-                &gt;
-              </button>
-            </div>
-          )}
-        </section>
-
-        {/* ================= RIGHT WORKSPACE ================= */}
         {selectedTrack ? (
-          <section className="track-detail-panel">
-            {/* Header Card */}
-            <div className="selected-track-header">
-              <div className="track-icon-box lg icon-purple">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M9 18V5l12-2v13" />
-                  <circle cx="6" cy="18" r="3" />
-                  <circle cx="18" cy="16" r="3" />
-                </svg>
-              </div>
-              <div className="selected-track-titles">
-                <div className="selected-title-row">
-                  <h3 className="selected-track-title">{selectedTrack.originalName}</h3>
-                  <span className={`status-pill status-${selectedTrack.statusColor}`}>
-                    {selectedTrack.statusLabel}
-                  </span>
-                </div>
-                <div className="selected-meta-row">
-                  <span>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <polygon points="12 2 2 7 12 12 22 7 12 2" />
-                      <polyline points="2 17 12 22 22 17" />
-                      <polyline points="2 12 12 17 22 12" />
+          <>
+            {/* Centered Dark Charcoal Slate Audio Player Box */}
+            <div className="audio-task-player-box">
+              {/* Row 1: Play/Pause, Scrubber, Time, Volume */}
+              <div className="audio-player-top-row">
+                <button
+                  type="button"
+                  className="audio-play-toggle-btn"
+                  onClick={togglePlay}
+                  title={isPlaying ? 'Pause' : 'Play'}
+                >
+                  {isPlaying ? (
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+                      <rect x="5" y="4" width="4" height="16" rx="1" />
+                      <rect x="15" y="4" width="4" height="16" rx="1" />
                     </svg>
-                    {selectedTrack.packageName}
-                  </span>
-                  <span>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <circle cx="12" cy="12" r="10" />
-                      <polyline points="12 6 12 12 16 14" />
+                  ) : (
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+                      <polygon points="5 3 19 12 5 21 5 3" />
                     </svg>
-                    {formatSecs(duration)}
-                  </span>
-                  {selectedTrack.assignedAt && (
-                    <span>
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                        <line x1="16" y1="2" x2="16" y2="6" />
-                        <line x1="8" y1="2" x2="8" y2="6" />
-                        <line x1="3" y1="10" x2="21" y2="10" />
-                      </svg>
-                      {selectedTrack.assignedAt}
-                    </span>
                   )}
-                </div>
-              </div>
-              <div className="selected-header-nav">
-                <button
-                  type="button"
-                  className="icon-btn-round"
-                  title="Back to list"
-                  onClick={() => setMobileTab('list')}
-                >
-                  &lt;
                 </button>
-              </div>
-            </div>
 
-            {/* Audio Player Bar */}
-            <div className="workspace-player-card">
-              {/* Play Button */}
-              <button
-                type="button"
-                className="player-round-play"
-                onClick={togglePlay}
-                title={isPlaying ? 'Pause' : 'Play'}
-              >
-                {isPlaying ? (
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="#07111f">
-                    <rect x="6" y="4" width="4" height="16" rx="1" />
-                    <rect x="14" y="4" width="4" height="16" rx="1" />
-                  </svg>
-                ) : (
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="#07111f" style={{ marginLeft: 2 }}>
-                    <polygon points="5 3 19 12 5 21 5 3" />
-                  </svg>
-                )}
-              </button>
-
-              {/* Time */}
-              <span className="player-time-txt">
-                {formatSecs(currentTime)} / {formatSecs(duration)}
-              </span>
-
-              {/* Waveform with cyan-to-purple gradient */}
-              <div
-                className="waveform-bar-wrap"
-                onClick={(e) => {
-                  const rect = e.currentTarget.getBoundingClientRect();
-                  const pos = (e.clientX - rect.left) / rect.width;
-                  seek(Math.max(0, Math.min(1, pos)));
-                }}
-              >
-                {WAVE_BARS.map((h, i) => {
-                  const pct = i / WAVE_BARS.length;
-                  const active = pct <= progressPct;
-                  return (
-                    <span
-                      key={i}
-                      className={`wave-col ${active ? 'active' : ''}`}
-                      style={{ height: `${h}%` }}
-                    />
-                  );
-                })}
-              </div>
-
-              {/* Speed */}
-              <div className="speed-wrap">
-                <button
-                  type="button"
-                  className="speed-btn"
-                  onClick={() => setSpeedMenuOpen(!speedMenuOpen)}
-                >
-                  <span>{playbackRate}x</span>
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <polyline points="6 9 12 15 18 9" />
-                  </svg>
-                </button>
-                {speedMenuOpen && (
-                  <div className="speed-menu">
-                    {[0.5, 0.75, 1, 1.25, 1.5, 2].map((r) => (
-                      <button
-                        key={r}
-                        type="button"
-                        onClick={() => {
-                          setPlaybackRate(r);
-                          setSpeedMenuOpen(false);
-                          if (audioRef.current) audioRef.current.playbackRate = r;
-                        }}
-                      >
-                        {r}x
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Volume */}
-              <div className="volume-wrap">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-                  <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" />
-                </svg>
                 <input
                   type="range"
                   min="0"
-                  max="1"
-                  step="0.05"
-                  value={volume}
+                  max={duration > 0 ? duration : 100}
+                  step="0.1"
+                  value={currentTime}
                   onChange={(e) => {
-                    const v = parseFloat(e.target.value);
-                    setVolume(v);
-                    if (audioRef.current) audioRef.current.volume = v;
+                    const target = parseFloat(e.target.value);
+                    setCurrentTime(target);
+                    if (audioRef.current) audioRef.current.currentTime = target;
                   }}
+                  className="audio-timeline-slider"
                 />
-              </div>
-            </div>
 
-            {/* Admin Instruction Box */}
-            <div className="admin-instruction-card">
-              <div className="admin-circle-avatar">AD</div>
-              <div className="admin-inst-body">
-                <div className="admin-inst-header">
-                  <strong>Admin Instruction</strong>
-                  {selectedTrack.assignedAt && <small>{selectedTrack.assignedAt}</small>}
-                </div>
-                <p className="admin-inst-text">
-                  {selectedTrack.adminInstruction}
-                </p>
-              </div>
-            </div>
-            {/* "Your Transcription" Box */}
-            <div className="transcription-workspace-card">
-              <div className="card-top-head">
-                <div className="card-title-txt">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                    <polyline points="14 2 14 8 20 8" />
-                    <line x1="16" y1="13" x2="8" y2="13" />
-                    <line x1="16" y1="17" x2="8" y2="17" />
+                <span className="audio-time-label">
+                  {formatSecs(currentTime)} / {formatSecs(duration)}
+                </span>
+
+                <div className="audio-vol-wrap">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                    <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
                   </svg>
-                  <span>Your Transcription</span>
-                </div>
-                <div className="card-top-meta">
-                  <span className="auto-save-green">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2.5">
-                      <polyline points="20 6 9 17 4 12" />
-                    </svg>
-                    Auto-saved {lastSaved}
-                  </span>
-                  <span className="word-count-badge">Word count: {wordCount}</span>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    value={volume}
+                    onChange={(e) => {
+                      const v = parseFloat(e.target.value);
+                      setVolume(v);
+                      if (audioRef.current) audioRef.current.volume = v;
+                    }}
+                    className="audio-volume-slider"
+                  />
                 </div>
               </div>
 
-              {/* Rich Text Toolbar */}
-              <div className="editor-action-bar">
-                <div className="action-bar-left">
-                  <button type="button" className="tool-btn-sm" title="Undo" onClick={() => document.execCommand('undo')}>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="1 4 1 10 7 10" /><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" /></svg>
-                  </button>
-                  <button type="button" className="tool-btn-sm" title="Redo" onClick={() => document.execCommand('redo')}>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" /></svg>
-                  </button>
-                  <span className="tool-sep" />
-                  <button type="button" className="tool-btn-sm" title="Bold" onClick={() => formatText('**', '**')}><strong>B</strong></button>
-                  <button type="button" className="tool-btn-sm" title="Italic" onClick={() => formatText('*', '*')}><em>I</em></button>
-                  <button type="button" className="tool-btn-sm" title="Underline" onClick={() => formatText('<u>', '</u>')}><u>U</u></button>
-                  <span className="tool-sep" />
-                  <button type="button" className="tool-btn-sm" title="Bullet list" onClick={() => formatText('\n• ')}>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
-                  </button>
-                  <button type="button" className="tool-btn-sm" title="Numbered list" onClick={() => formatText('\n1. ')}>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="10" y1="6" x2="21" y2="6"/><line x1="10" y1="12" x2="21" y2="12"/><line x1="10" y1="18" x2="21" y2="18"/><path d="M4 6h1v4"/><path d="M4 10h2"/><path d="M6 18H4c0-1 2-2 2-3s-1-1.5-2-1"/></svg>
-                  </button>
-                </div>
+              {/* Row 2: Speed slider */}
+              <div className="audio-player-bottom-row">
+                <span className="audio-speed-title">Speed:</span>
+                <input
+                  type="range"
+                  min="0.5"
+                  max="2"
+                  step="0.25"
+                  value={playbackRate}
+                  onChange={(e) => {
+                    const r = parseFloat(e.target.value);
+                    setPlaybackRate(r);
+                    if (audioRef.current) audioRef.current.playbackRate = r;
+                  }}
+                  className="audio-speed-slider"
+                />
+                <span className="audio-speed-val">{playbackRate.toFixed(1)}x</span>
+              </div>
+            </div>
 
-                <div className="action-bar-right">
-                  <select className="select-text-style">
-                    <option>Normal text</option>
-                    <option>Heading 1</option>
-                    <option>Heading 2</option>
-                  </select>
-                  <button type="button" className="tool-btn-sm" title="Expand">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <polyline points="15 3 21 3 21 9" />
-                      <polyline points="9 21 3 21 3 15" />
-                      <line x1="21" y1="3" x2="14" y2="10" />
-                      <line x1="3" y1="21" x2="10" y2="14" />
-                    </svg>
-                  </button>
-                </div>
+            {/* Write Here label */}
+            <div className="audio-write-label">Write Here</div>
+
+            {/* Editor frame matching screenshot */}
+            <div className="audio-editor-frame">
+              {/* Toolbar */}
+              <div className="audio-editor-toolbar">
+                {/* Bold */}
+                <button
+                  type="button"
+                  className="editor-tool-btn"
+                  title="Bold"
+                  onClick={() => formatText('**', '**')}
+                  style={{ fontWeight: 700 }}
+                >
+                  B
+                </button>
+
+                {/* Underline */}
+                <button
+                  type="button"
+                  className="editor-tool-btn"
+                  title="Underline"
+                  onClick={() => formatText('<u>', '</u>')}
+                  style={{ textDecoration: 'underline' }}
+                >
+                  U
+                </button>
+
+                <span className="editor-tool-vsep" />
+
+                {/* Highlight A */}
+                <button
+                  type="button"
+                  className="editor-tool-btn"
+                  title="Highlight"
+                  onClick={() => formatText('<mark>', '</mark>')}
+                  style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', lineHeight: 1 }}
+                >
+                  <span style={{ fontWeight: 700, fontSize: 13 }}>A</span>
+                  <span style={{ width: 12, height: 2.5, background: '#eab308', borderRadius: 1 }} />
+                </button>
+
+                <span className="editor-tool-vsep" />
+
+                {/* Bullet list */}
+                <button
+                  type="button"
+                  className="editor-tool-btn"
+                  title="Bullet list"
+                  onClick={() => formatText('\n• ')}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <line x1="9" y1="6" x2="20" y2="6" />
+                    <line x1="9" y1="12" x2="20" y2="12" />
+                    <line x1="9" y1="18" x2="20" y2="18" />
+                    <circle cx="4" cy="6" r="1.5" fill="currentColor" />
+                    <circle cx="4" cy="12" r="1.5" fill="currentColor" />
+                    <circle cx="4" cy="18" r="1.5" fill="currentColor" />
+                  </svg>
+                </button>
+
+                {/* Numbered list */}
+                <button
+                  type="button"
+                  className="editor-tool-btn"
+                  title="Numbered list"
+                  onClick={() => formatText('\n1. ')}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <line x1="10" y1="6" x2="21" y2="6" />
+                    <line x1="10" y1="12" x2="21" y2="12" />
+                    <line x1="10" y1="18" x2="21" y2="18" />
+                    <path d="M4 6h1v4" />
+                    <path d="M4 10h2" />
+                    <path d="M6 18H4c0-1 2-2 2-3s-1-1.5-2-1" />
+                  </svg>
+                </button>
+
+                {/* Indent / Align */}
+                <button
+                  type="button"
+                  className="editor-tool-btn"
+                  title="Align / Indent"
+                  onClick={() => formatText('  ')}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <line x1="21" y1="10" x2="7" y2="10" />
+                    <line x1="21" y1="6" x2="3" y2="6" />
+                    <line x1="21" y1="14" x2="3" y2="14" />
+                    <line x1="21" y1="18" x2="7" y2="18" />
+                  </svg>
+                </button>
               </div>
 
               {/* Textarea */}
               <textarea
                 ref={editorRef}
-                className="transcription-edit-area"
-                rows={8}
-                placeholder="Start typing the transcription here... (Every Word's First Letter Must Be Capitalized)"
+                className="audio-editor-textarea"
+                rows={10}
+                placeholder=""
                 value={textValue}
                 onChange={handleTextChange}
+                spellCheck={true}
                 onPaste={(e) => {
                   e.preventDefault();
                   toast('Pasting is disabled. Please type the transcription manually.');
@@ -904,112 +633,28 @@ export default function AssignedAudio() {
                   e.preventDefault();
                 }}
               />
-            </div>
 
-            {/* Action Cards (Save Draft & Submit for Review) */}
-            <div className="transcription-actions-split">
-              <button
-                type="button"
-                className="action-split-card card-save-draft"
-                disabled={saving}
-                onClick={saveDraft}
-              >
-                <div className="action-icon-box teal">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
-                    <polyline points="17 21 17 13 7 13 7 21" />
-                    <polyline points="7 3 7 8 15 8" />
-                  </svg>
-                </div>
-                <div className="action-text-block">
-                  <strong>{saving ? 'Saving...' : 'Save Draft'}</strong>
-                  <p>Draft will be saved to your account</p>
-                </div>
-              </button>
-
-              <button
-                type="button"
-                className="action-split-card card-submit-review"
-                disabled={submitting}
-                onClick={submitReview}
-              >
-                <div className="action-icon-box blue-grad">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <line x1="22" y1="2" x2="11" y2="13" />
-                    <polygon points="22 2 15 22 11 13 2 9 22 2" />
-                  </svg>
-                </div>
-                <div className="action-text-block">
-                  <strong>{submitting ? 'Submitting...' : (['approved', 'submitted', 'pending', 'reviewed'].includes(selectedTrack?.status) ? 'Re-submit Transcription' : 'Submit for Review')}</strong>
-                  <p>{['approved', 'submitted', 'pending', 'reviewed'].includes(selectedTrack?.status) ? 'Submit changes to re-evaluate transcription' : 'Submit when transcription is complete'}</p>
-                </div>
-              </button>
-            </div>
-
-            {/* Submission History */}
-            <div className="submission-history-panel">
-              <div className="history-title-row">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                  <polyline points="14 2 14 8 20 8" />
-                  <line x1="16" y1="13" x2="8" y2="13" />
-                  <line x1="16" y1="17" x2="8" y2="17" />
-                </svg>
-                <h4>Submission History ({selectedTrack.history?.length || 0})</h4>
-              </div>
-
-              <div className="history-items-list">
-                {selectedTrack.history && selectedTrack.history.length > 0 ? (
-                  selectedTrack.history.slice().reverse().map((h, idx) => (
-                    <div key={idx} className="history-row-item">
-                      <div className="history-status-circle green">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3">
-                          <polyline points="20 6 9 17 4 12" />
-                        </svg>
-                      </div>
-                      <div className="history-text-col">
-                        <div className="history-entry-top">
-                          <strong>Version {h.version || idx + 1} Submitted</strong>
-                          <small>{h.submittedAt ? new Date(h.submittedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Recent'}</small>
-                        </div>
-                        <p>{h.text ? (h.text.slice(0, 80) + (h.text.length > 80 ? '...' : '')) : 'Complete transcription submitted.'}</p>
-                      </div>
-                      <button type="button" className="btn-view-history" onClick={() => toast(`Viewing version ${h.version || idx + 1}`)}>
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                          <circle cx="12" cy="12" r="3" />
-                        </svg>
-                        <span>View</span>
-                      </button>
-                    </div>
-                  ))
-                ) : (
-                  <div className="empty" style={{ padding: '24px 16px', textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>
-                    No submission history yet for this track.
-                  </div>
-                )}
+              {/* Resize pill at bottom center */}
+              <div className="audio-editor-bottom-bar">
+                <span className="audio-editor-resize-pill" />
               </div>
             </div>
-          </section>
+
+            {/* Dark teal Submit Button */}
+            <button
+              type="button"
+              className="audio-task-submit-btn"
+              disabled={submitting}
+              onClick={submitReview}
+            >
+              {submitting ? 'Submitting...' : 'Submit'}
+            </button>
+          </>
         ) : (
-          /* Empty detail panel when no audio is assigned / selected */
-          <section className="track-detail-panel" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <div className="empty" style={{ padding: '60px 20px', textAlign: 'center', maxWidth: 440 }}>
-              <div className="track-icon-box lg icon-blue" style={{ margin: '0 auto 16px' }}>
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M9 18V5l12-2v13" />
-                  <circle cx="6" cy="18" r="3" />
-                  <circle cx="18" cy="16" r="3" />
-                </svg>
-              </div>
-              <h3 style={{ margin: '0 0 8px', color: 'var(--text)' }}>No Audio Selected</h3>
-              <p style={{ margin: 0, color: 'var(--muted)', fontSize: 14 }}>
-                {allTracks.length === 0
-                  ? 'No audio assigned yet. Your assigned audio files will appear here.'
-                  : 'Select an assigned audio file from the list on the left to start playback and transcription.'}
-              </p>
-            </div>
-          </section>
+          <div style={{ textAlign: 'center', padding: '60px 20px', color: '#64748b' }}>
+            <p style={{ fontSize: 16, margin: '0 0 6px', color: '#1e293b', fontWeight: 600 }}>No Audio Task Assigned</p>
+            <p style={{ fontSize: 13, margin: 0 }}>Please wait for an admin to assign an audio task.</p>
+          </div>
         )}
       </div>
     </div>

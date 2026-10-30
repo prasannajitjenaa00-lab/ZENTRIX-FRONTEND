@@ -7,7 +7,7 @@ import { useResource } from './useResource';
 export function useRoster() {
   const { user } = useAuth();
   const { data } = useResource(async () => {
-    if (user.role === 'admin') return (await usersApi.list({ includeBank: undefined })).data;
+    if (user.role === 'admin') return (await usersApi.list()).data;
     if (user.role === 'employee') return [];
     return usersApi.crew();
   }, [user.id, user.role]);

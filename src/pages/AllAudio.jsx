@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { audioApi, usersApi } from '../services';
 import { audioUrl } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -25,6 +25,19 @@ export default function AllAudioView() {
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('all'); // 'all' | 'assigned' | 'unassigned'
   const [filterProject, setFilterProject] = useState('all');
+  const [realDurations, setRealDurations] = useState({});
+
+  const handleAudioMetadata = (e, track) => {
+    const dur = Math.round(e.target.duration);
+    if (dur && Number.isFinite(dur) && dur > 0) {
+      setRealDurations((prev) => (prev[track.id] === dur ? prev : { ...prev, [track.id]: dur }));
+      if (Math.abs(dur - (track.duration || 0)) > 2) {
+        audioApi.updateDuration(track.id, dur).catch(() => {});
+      }
+    }
+  };
+
+  // Eager audio prefetching disabled to prevent browser connection starvation
 
   const formatFileSize = (bytes) => {
     if (!bytes) return '0 B';
@@ -210,7 +223,7 @@ export default function AllAudioView() {
                           </td>
                           <td>
                             <div style={{ fontSize: 13, fontWeight: 600, color: '#12c2d4' }}>
-                              {fmtDuration(t.duration)}
+                              {fmtDuration(realDurations[t.id] ?? t.duration)}
                             </div>
                             <div style={{ fontSize: 11, color: 'var(--muted)' }}>
                               {formatFileSize(t.size)}
@@ -246,6 +259,10 @@ export default function AllAudioView() {
                             <audio
                               controls
                               preload="none"
+                              onLoadedMetadata={(e) => handleAudioMetadata(e, t)}
+                              onDurationChange={(e) => handleAudioMetadata(e, t)}
+                              onCanPlay={(e) => handleAudioMetadata(e, t)}
+                              onPlay={(e) => handleAudioMetadata(e, t)}
                               src={audioUrl(t)}
                               style={{ width: '100%', height: 32, maxWidth: 260 }}
                             />

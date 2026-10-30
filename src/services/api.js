@@ -34,10 +34,13 @@ export const del = (p) => request('DELETE', p);
 export const qs = (o) => { const p = new URLSearchParams(); Object.entries(o || {}).forEach(([k, v]) => { if (v !== undefined && v !== null && v !== '') p.set(k, v); }); const s = p.toString(); return s ? `?${s}` : ''; };
 
 /** Upload one file with byte progress (XHR gives upload progress events; fetch does not). */
-export function uploadTracks(projectId, files, onProgress) {
+export function uploadTracks(projectId, files, onProgress, durations) {
   return new Promise((resolve, reject) => {
     const form = new FormData();
     files.forEach((f) => form.append('files', f, f.name));
+    if (durations && Object.keys(durations).length > 0) {
+      form.append('durations', JSON.stringify(durations));
+    }
     const xhr = new XMLHttpRequest();
     xhr.open('POST', `${BASE}/api/projects/${projectId}/tracks`);
     xhr.withCredentials = true;
