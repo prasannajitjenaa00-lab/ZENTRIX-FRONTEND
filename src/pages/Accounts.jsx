@@ -25,7 +25,8 @@ function PasswordCell({ userId }) {
     setLoading(true);
     try {
       const res = await usersApi.password(userId);
-      setPwd(res.password || '—');
+      const val = (res && typeof res.password === "object" && res.password !== null) ? res.password.password : res?.password;
+      setPwd(val || "—");
     } catch (err) {
       toast(err.message || 'Could not fetch password.');
       setPwd('••••••');
